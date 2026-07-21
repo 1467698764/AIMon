@@ -45,7 +45,14 @@ export class NewApiAdapter implements SiteAdapter {
       const response = await remoteFetch(baseUrl, '/api/status', {}, 6_000)
       if (!response.ok) return false
       const body = await response.json() as any
-      return Boolean(body?.success || body?.data?.quota_per_unit || body?.data?.system_name)
+      const data = body?.data
+      return body?.success === true && Boolean(data && typeof data === 'object' && (
+        data.quota_per_unit != null
+        || data.system_name
+        || data.version
+        || data.start_time != null
+        || data.setup != null
+      ))
     } catch {
       return false
     }

@@ -4,6 +4,10 @@ import type { Credentials, RemoteSiteSnapshot, SiteAdapter, SiteType } from '../
 
 const adapters: SiteAdapter[] = [new NewApiAdapter(), new Sub2ApiAdapter()]
 
+function adapterLabel(adapter: SiteAdapter): string {
+  return adapter.type === 'newapi' ? 'New API' : 'Sub2API'
+}
+
 export function getAdapter(type: SiteType): SiteAdapter {
   const adapter = adapters.find((item) => item.type === type)
   if (!adapter) throw new Error(`不支持的站点类型：${type}`)
@@ -15,10 +19,8 @@ export async function detectAndLoad(baseUrl: string, credentials: Credentials): 
     adapter,
     matched: await adapter.probe(baseUrl),
   })))
-  const ordered = [
-    ...probeResults.filter((item) => item.matched).map((item) => item.adapter),
-    ...probeResults.filter((item) => !item.matched).map((item) => item.adapter),
-  ]
+  const matched = probeResults.filter((item) => item.matched).map((item) => item.adapter)
+  const ordered = matched.length ? matched : adapters
   const errors: string[] = []
   for (const adapter of ordered) {
     try {
@@ -28,6 +30,9 @@ export async function detectAndLoad(baseUrl: string, credentials: Credentials): 
     } catch (error) {
       errors.push(`${adapter.type}: ${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+  if (matched.length) {
+    throw new Error(`已识别为${matched.map(adapterLabel).join(' / ')}，但登录或读取站点信息失败。${errors.join('；')}`)
   }
   throw new Error(`无法识别或登录该站点。${errors.join('；')}`)
 }

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { db, nowIso, transaction } from './db.js'
 import { decrypt, encrypt } from './crypto.js'
 import { detectAndLoad, getAdapter } from './adapters/index.js'
+import { reconcileSourceGroups } from './group-reconciliation.js'
+import type { StoredGroupIdentity } from './group-reconciliation.js'
 import { normalizeBaseUrl } from './http.js'
 import type { Credentials, ExistingRemoteKey, RemoteGroup, RemoteModel } from './types.js'
 
@@ -83,13 +85,14 @@ export async function discoverSite(input: DiscoverInput & { draftId?: number }) 
     )
     const id = Number(result.lastInsertRowid)
     const sameOrigin = Boolean(existing && normalizeBaseUrl(existing.base_url) === baseUrl)
-    const sourceGroups = sameOrigin
+    const sourceGroups = (sameOrigin
       ? all('SELECT * FROM site_groups WHERE site_id = ? ORDER BY sort_order, id', existing!.id)
-      : []
+      : []) as Array<Row & StoredGroupIdentity>
+    const reconciledSources = reconcileSourceGroups(sourceGroups, snapshot.groups, snapshot.type === 'newapi')
     const nextOrder = Number(sourceGroups.at(-1)?.sort_order ?? -1) + 1
     let newOffset = 0
-    for (const remote of snapshot.groups) {
-      const source = sourceGroups.find((group) => String(group.external_id) === remote.externalId)
+    for (const [remoteIndex, remote] of snapshot.groups.entries()) {
+      const source = reconciledSources[remoteIndex]
       db.prepare(`
         INSERT INTO draft_groups
           (draft_id, source_group_id, external_id, name, ratio, ratio_dynamic, platform, api_key_enc,

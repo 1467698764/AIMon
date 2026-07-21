@@ -40,6 +40,17 @@ describe('HTTP helpers', () => {
     await expect(isCloudflareChallenge(response)).resolves.toBe(true)
   })
 
+  it('does not mistake JavaScript Detection injected into a normal page for a challenge', async () => {
+    const response = new Response(`
+      <!doctype html><title>VSLLM</title><main>Dashboard</main>
+      <script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
+    `, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html', Server: 'cloudflare' },
+    })
+    await expect(isCloudflareChallenge(response)).resolves.toBe(false)
+  })
+
   it('does not mistake ordinary JSON errors behind Cloudflare for a challenge', async () => {
     const response = new Response(JSON.stringify({ error: 'forbidden' }), {
       status: 403,

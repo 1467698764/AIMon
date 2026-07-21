@@ -94,7 +94,7 @@ function originOf(baseUrl: string): string {
 }
 
 function challengePattern(value: string): boolean {
-  return /cf-chl-|challenge-platform|just a moment|attention required|cloudflare ray id|checking your browser|performing security verification/i.test(value)
+  return /cf-chl-|cf_chl_|challenge-form|challenge-error-text|just a moment|attention required|checking your browser|performing security verification/i.test(value)
 }
 
 function safeError(error: unknown): string {
