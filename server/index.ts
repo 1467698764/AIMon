@@ -3,11 +3,14 @@ import { timingSafeEqual } from 'node:crypto'
 import express, { type ErrorRequestHandler } from 'express'
 import { ZodError } from 'zod'
 import { config } from './config.js'
+import authRoutes from './auth-routes.js'
+import { AuthError, requireAppAuth } from './auth.js'
 import routes from './routes.js'
 import { startAutoHealthScheduler } from './health.js'
 
 export const app = express()
 app.disable('x-powered-by')
+app.set('trust proxy', 1)
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
@@ -30,7 +33,8 @@ if (config.basicAuthUser || config.basicAuthPassword) {
   })
 }
 app.use(express.json({ limit: '1mb' }))
-app.use('/api', routes)
+app.use('/api/auth', authRoutes)
+app.use('/api', requireAppAuth, routes)
 
 if (config.isProduction) {
   const dist = path.resolve('dist')
@@ -41,6 +45,10 @@ if (config.isProduction) {
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   if (error instanceof ZodError) {
     res.status(400).json({ error: error.issues[0]?.message || '请求参数错误' })
+    return
+  }
+  if (error instanceof AuthError) {
+    res.status(error.status).json({ error: error.message })
     return
   }
   const message = error instanceof Error ? error.message : '服务器内部错误'

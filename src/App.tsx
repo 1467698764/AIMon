@@ -1,12 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
-  CircleAlert, Gauge, GripVertical, Layers3, LoaderCircle, MoveDown, MoveUp, Pencil, Plus,
+  CircleAlert, Gauge, GripVertical, Layers3, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, Pencil, Plus,
   RefreshCw, Server, Settings as SettingsIcon, Sparkles, Trash2, WalletCards, X,
 } from 'lucide-react'
 import { api } from './api'
 import type {
-  Dashboard, GroupItem, HealthJob, HealthStatus, ModelItem, PreparedGroup, Settings,
+  AuthStatus, Dashboard, GroupItem, HealthJob, HealthStatus, ModelItem, PreparedGroup, Settings,
   SiteEditor, SiteItem,
 } from './types'
 
@@ -80,6 +80,39 @@ function Modal({ title, children, onClose, wide = false }: {
   )
 }
 
+function AuthScreen({ status, onAuthenticated }: { status: AuthStatus; onAuthenticated: () => void }) {
+  const setup = !status.configured
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (setup && password !== confirmation) { setError('两次输入的密码不一致'); return }
+    setSubmitting(true); setError('')
+    try {
+      if (setup) await api.setupPassword(password)
+      else await api.login(password)
+      onAuthenticated()
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+    finally { setSubmitting(false) }
+  }
+  return <main className="auth-page">
+    <section className="auth-panel">
+      <div className="auth-brand"><div className="logo-mark"><Activity size={21} /></div><div><strong>AIMon</strong><span>CHANNEL OBSERVER</span></div></div>
+      <div className="auth-icon"><LockKeyhole size={26} /></div>
+      <h1>{setup ? '设置管理密码' : '登录监控台'}</h1>
+      <p>{setup ? '首次使用需要设置管理密码，之后访问监控数据都必须登录。' : '输入管理密码后继续。'}</p>
+      <form onSubmit={submit} className="auth-form">
+        <label><span>{setup ? '管理密码' : '密码'}</span><input required minLength={setup ? 8 : 1} maxLength={200} type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} autoFocus /></label>
+        {setup && <label><span>确认管理密码</span><input required minLength={8} maxLength={200} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>}
+        {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
+        <button className="button primary" disabled={submitting}>{submitting && <LoaderCircle size={16} className="spin" />}{setup ? '完成设置' : '登录'}</button>
+      </form>
+    </section>
+  </main>
+}
+
 function SettingsModal({ current, onClose, onSaved }: {
   current: Settings; onClose: () => void; onSaved: () => void
 }) {
@@ -87,11 +120,18 @@ function SettingsModal({ current, onClose, onSaved }: {
   const [password, setPassword] = useState('')
   const [clearPassword, setClearPassword] = useState(false)
   const [minutes, setMinutes] = useState(current.autoCheckMinutes)
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('')
+  const [newAdminPassword, setNewAdminPassword] = useState('')
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError('')
     try {
+      if (newAdminPassword) {
+        if (newAdminPassword !== confirmAdminPassword) throw new Error('两次输入的新管理密码不一致')
+        await api.changePassword(currentAdminPassword, newAdminPassword)
+      }
       await api.saveSettings({
         username,
         autoCheckMinutes: minutes,
@@ -109,6 +149,10 @@ function SettingsModal({ current, onClose, onSaved }: {
           <label><span>默认登录密码</span><input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder={current.hasPassword ? '已保存，留空不修改' : '尚未设置'} disabled={clearPassword} /></label>
           {current.hasPassword && <label className="check-line"><input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />清除已保存密码</label>}
           <label><span>自动测活间隔（分钟）</span><input type="number" min="0" step="1" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} /></label>
+          <div className="form-section"><LockKeyhole size={15} /><strong>修改管理密码</strong><span>留空则不修改</span></div>
+          <label><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>
+          <label><span>新管理密码</span><input value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" placeholder="至少 8 个字符" /></label>
+          <label><span>确认新管理密码</span><input value={confirmAdminPassword} onChange={(e) => setConfirmAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" required={Boolean(newAdminPassword)} /></label>
           {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
         </div>
         <footer className="modal-footer"><button type="button" className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={saving}>{saving && <LoaderCircle size={16} className="spin" />}保存</button></footer>
@@ -354,6 +398,7 @@ function SitePanel({ site, recommended, onEdit, onDelete, onHealth, onChanged, o
 }
 
 export function App() {
+  const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [jobs, setJobs] = useState<HealthJob[]>([])
   const [error, setError] = useState('')
@@ -369,7 +414,18 @@ export function App() {
       setDashboard(data); setJobs(jobData); if (!silent) setError('')
     } catch (err) { if (!silent) setError(err instanceof Error ? err.message : String(err)) }
   }
-  useEffect(() => { void load(); const timer = setInterval(() => void load(true), 4000); return () => clearInterval(timer) }, [])
+  useEffect(() => {
+    void api.authStatus().then(setAuth).catch((err) => setError(err instanceof Error ? err.message : String(err)))
+    const expired = () => { setAuth((current) => ({ configured: current?.configured ?? true, authenticated: false })); setDashboard(null) }
+    window.addEventListener('aimon-auth-expired', expired)
+    return () => window.removeEventListener('aimon-auth-expired', expired)
+  }, [])
+  useEffect(() => {
+    if (!auth?.authenticated) return
+    void load()
+    const timer = setInterval(() => void load(true), 4000)
+    return () => clearInterval(timer)
+  }, [auth?.authenticated])
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 2800); return () => clearTimeout(timer) }, [toast])
 
   async function health(scope: Record<string, number> = {}) {
@@ -396,14 +452,28 @@ export function App() {
     setDashboard({ ...dashboard, sites })
     await api.reorder('site', sites.map((site) => site.id)); void load(true)
   }
+  async function signedIn() {
+    const status = await api.authStatus()
+    setAuth(status)
+    setDashboard(null)
+  }
+  async function signOut() {
+    try { await api.logout() } finally {
+      setAuth((current) => ({ configured: current?.configured ?? true, authenticated: false }))
+      setDashboard(null)
+      setSettingsOpen(false)
+    }
+  }
   const activeJob = jobs.find((job) => job.status === 'running' || job.status === 'queued')
+  if (!auth) return <div className="app-loading"><div className="logo-mark"><Activity /></div><LoaderCircle className="spin" /><span>{error || '正在检查访问权限'}</span></div>
+  if (!auth.authenticated) return <AuthScreen status={auth} onAuthenticated={() => void signedIn()} />
   if (!dashboard) return <div className="app-loading"><div className="logo-mark"><Activity /></div><LoaderCircle className="spin" /><span>{error || '正在载入监控台'}</span></div>
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="logo-mark"><Activity size={21} /></div><div><strong>AIMon</strong><span>CHANNEL OBSERVER</span></div></div>
       <nav><button className="active"><Gauge size={18} /><span>渠道监控</span></button></nav>
-      <div className="sidebar-foot"><div className={`pulse-state ${activeJob ? 'busy' : ''}`}><span />{activeJob ? '正在测活' : '监控就绪'}</div><button onClick={() => setSettingsOpen(true)}><SettingsIcon size={18} /><span>默认配置</span></button></div>
+      <div className="sidebar-foot"><div className={`pulse-state ${activeJob ? 'busy' : ''}`}><span />{activeJob ? '正在测活' : '监控就绪'}</div><button onClick={() => setSettingsOpen(true)}><SettingsIcon size={18} /><span>默认配置</span></button><button onClick={() => void signOut()}><LogOut size={18} /><span>退出登录</span></button></div>
     </aside>
     <main>
       <header className="topbar"><div><h1>渠道监控</h1><p>站点、分组与模型运行状态</p></div><div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" onClick={() => void health()}><RefreshCw size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div></header>

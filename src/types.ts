@@ -1,5 +1,10 @@
 export type HealthStatus = 'excellent' | 'available' | 'failed' | 'pending'
 
+export interface AuthStatus {
+  configured: boolean
+  authenticated: boolean
+}
+
 export interface HealthAttempt {
   ok: boolean
   ttfbMs: number | null

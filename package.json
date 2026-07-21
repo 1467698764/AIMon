@@ -11,7 +11,7 @@
     "build": "tsc -p server/tsconfig.json && vite build",
     "start": "node dist-server/index.js",
     "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
-    "test": "vitest run && tsx tests/site-service-integration.ts",
+    "test": "vitest run && tsx tests/site-service-integration.ts && tsx tests/auth-integration.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

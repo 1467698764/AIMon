@@ -14,10 +14,6 @@ if (isProduction && secret === 'aimon-development-only-change-me') {
 
 const basicAuthUser = process.env.AIMON_BASIC_USER || ''
 const basicAuthPassword = process.env.AIMON_BASIC_PASSWORD || ''
-const allowUnauthenticated = process.env.ALLOW_UNAUTHENTICATED === 'true'
-if (isProduction && !allowUnauthenticated && (!basicAuthUser || !basicAuthPassword)) {
-  throw new Error('生产环境必须设置 AIMON_BASIC_USER 与 AIMON_BASIC_PASSWORD；仅限受保护内网可显式设置 ALLOW_UNAUTHENTICATED=true')
-}
 
 export const config = {
   port: Number(process.env.PORT || 8787),
@@ -27,12 +23,11 @@ export const config = {
   healthAttempts: Math.floor(positiveNumber(process.env.HEALTH_ATTEMPTS, 3, 1)),
   basicAuthUser,
   basicAuthPassword,
-  allowUnauthenticated,
   cloakBrowserEnabled: process.env.CLOAKBROWSER_ENABLED !== 'false',
   cloakBrowserHeadless: process.env.CLOAKBROWSER_HEADLESS !== 'false',
   cloakBrowserTimeoutMs: positiveNumber(process.env.CLOAKBROWSER_TIMEOUT_MS, 60_000, 10_000),
-  cloakBrowserIdleMs: positiveNumber(process.env.CLOAKBROWSER_IDLE_MS, 5 * 60_000, 60_000),
-  cloakBrowserMaxContexts: Math.floor(positiveNumber(process.env.CLOAKBROWSER_MAX_CONTEXTS, 4, 1)),
+  cloakBrowserIdleMs: positiveNumber(process.env.CLOAKBROWSER_IDLE_MS, 3 * 60_000, 60_000),
+  cloakBrowserMaxContexts: Math.floor(positiveNumber(process.env.CLOAKBROWSER_MAX_CONTEXTS, 2, 1)),
   cloakBrowserProxy: process.env.CLOAKBROWSER_PROXY || '',
   isProduction,
 }

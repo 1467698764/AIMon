@@ -1,17 +1,28 @@
-import type { Dashboard, HealthJob, PreparedGroup, Settings, SiteEditor } from './types'
+import type { AuthStatus, Dashboard, HealthJob, PreparedGroup, Settings, SiteEditor } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (response.status === 204) return undefined as T
   const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(body.error || `请求失败（HTTP ${response.status}）`)
+  if (!response.ok) {
+    if (response.status === 401 && !url.startsWith('/api/auth/')) window.dispatchEvent(new Event('aimon-auth-expired'))
+    throw new Error(body.error || `请求失败（HTTP ${response.status}）`)
+  }
   return body as T
 }
 
 export const api = {
+  authStatus: () => request<AuthStatus>('/api/auth/status'),
+  setupPassword: (password: string) => request<{ ok: true }>('/api/auth/setup', { method: 'POST', body: JSON.stringify({ password }) }),
+  login: (password: string) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) => request<{ ok: true }>('/api/auth/password', {
+    method: 'POST', body: JSON.stringify({ currentPassword, newPassword }),
+  }),
   dashboard: () => request<Dashboard>('/api/dashboard'),
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (data: Partial<Settings> & { password?: string }) =>
