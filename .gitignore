@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-server/
+data/
+.env
+*.log
+.vite/
+coverage/
+server/*.tsbuildinfo
