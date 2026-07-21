@@ -7,7 +7,7 @@ process.env.AIMON_SECRET = 'test-secret-for-aimon-unit-tests-only'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['server/**/*.test.ts'],
+    include: ['server/**/*.test.ts', 'src/**/*.test.ts'],
     restoreMocks: true,
   },
 })

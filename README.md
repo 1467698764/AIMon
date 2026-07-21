@@ -33,6 +33,12 @@ docker compose up -d --build
 
 `AIMON_SECRET` 用于加密本地敏感数据。部署后不要随意更换，否则已保存的凭据将无法解密。`data/` 目录包含 SQLite 数据库和 `cloak-profiles/` 浏览器登录会话；两者都应按密码同等级保护并纳入服务器备份，不能提交到 Git。
 
+## Zeabur 部署
+
+Zeabur 不会使用仓库中的 `docker-compose.yml`，而且服务重启或重新部署时会重置未挂载的容器文件系统。首次部署前必须在 AIMon 服务的 **Volumes** 页面创建一个持久卷，并将 **Mount Directory** 精确设置为 `/app/data`。`DATA_DIR` 保持 `/app/data`，`AIMON_SECRET` 必须设置为长期不变的随机字符串。
+
+Docker 镜像默认设置 `REQUIRE_PERSISTENT_DATA=true`。如果 `/app/data` 没有位于真实挂载卷中，AIMon 会拒绝启动并在日志中给出挂载提示，避免继续把配置写进下次部署就会消失的临时文件系统。Zeabur 首次挂载 Volume 会清空目标目录；已有临时数据库时，应先导出 `/app/data/` 中的全部文件，再挂载并重新导入。
+
 ## 本地开发
 
 需要 Node.js 22.5+（推荐 Node.js 24）。
@@ -56,6 +62,7 @@ npm run build
 | --- | --- | --- |
 | `PORT` | `8787` | 服务端口 |
 | `DATA_DIR` | `./data` | SQLite 数据目录 |
+| `REQUIRE_PERSISTENT_DATA` | 本地 `false`，Docker `true` | 启动前要求 `DATA_DIR` 位于 Linux 独立挂载卷中；仅明确使用持久宿主机文件系统时关闭 |
 | `AIMON_SECRET` | 仅开发回退值 | 敏感字段加密密钥，生产必须设置 |
 | `REQUEST_TIMEOUT_MS` | `30000` | 单次远端请求超时 |
 | `HEALTH_ATTEMPTS` | `3` | 单模型测活次数，建议保持 3 |

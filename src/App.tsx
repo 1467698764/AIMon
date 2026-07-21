@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { api } from './api'
 import type {
-  AuthStatus, Dashboard, GroupItem, HealthJob, HealthStatus, ModelItem, PreparedGroup, Settings,
+  AuthStatus, Dashboard, GroupItem, HealthJob, HealthJobTarget, HealthStatus, ModelItem, PreparedGroup, Settings,
   SiteEditor, SiteItem,
 } from './types'
 
@@ -17,6 +17,44 @@ const statusLabels: Record<HealthStatus, string> = {
 function fmtMs(value: number | null): string {
   if (value == null) return '--'
   return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`
+}
+
+type LatencyMetric = 'ttfb' | 'total' | 'ttft'
+type LatencyTone = 'good' | 'warning' | 'bad' | 'neutral'
+
+const latencyThresholds: Record<LatencyMetric, readonly [number, number]> = {
+  ttfb: [1_000, 3_000],
+  total: [6_000, 20_000],
+  ttft: [2_000, 6_000],
+}
+
+export function latencyTone(metric: LatencyMetric, value: number | null): LatencyTone {
+  if (value == null || !Number.isFinite(value)) return 'neutral'
+  const [good, warning] = latencyThresholds[metric]
+  if (value <= good) return 'good'
+  if (value <= warning) return 'warning'
+  return 'bad'
+}
+
+function MetricValue({ metric, value, label }: { metric: LatencyMetric; value: number | null; label: string }) {
+  const tone = latencyTone(metric, value)
+  return <span className={`metric-value metric-${tone}`} title={`${label}：${fmtMs(value)}`}>{fmtMs(value)}</span>
+}
+
+function SuccessValue({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
+  const tone: LatencyTone = activeTarget || model.successCount == null || model.attemptCount == null
+    ? 'neutral'
+    : model.successCount >= model.attemptCount
+      ? 'good'
+      : model.successCount >= Math.ceil(model.attemptCount * 2 / 3)
+        ? 'warning'
+        : 'bad'
+  const value = activeTarget?.status === 'running'
+    ? `第${activeTarget.attempt || 1}/${activeTarget.attemptCount}次`
+    : activeTarget?.status === 'queued'
+      ? '排队'
+      : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
+  return <span className={`metric-value metric-${tone}`} title={`三次测活成功率：${value}`}>{value}</span>
 }
 
 function fmtTime(value: string | null): string {
@@ -35,7 +73,10 @@ function scoreModel(model: ModelItem, standardRatio: number | null): number {
 }
 
 function statusError(model: ModelItem): string {
-  return model.attempts.filter((attempt) => !attempt.ok).map((attempt) => attempt.error).filter(Boolean).join('\n')
+  return model.attempts
+    .map((attempt, index) => attempt.ok ? '' : `第${index + 1}次：${attempt.error || '测活失败，未返回错误信息'}`)
+    .filter(Boolean)
+    .join('\n')
 }
 
 function IconButton({ title, children, onClick, tone = 'default', disabled = false }: {
@@ -44,14 +85,33 @@ function IconButton({ title, children, onClick, tone = 'default', disabled = fal
   return <button type="button" className={`icon-button ${tone}`} title={title} aria-label={title} onClick={onClick} disabled={disabled}>{children}</button>
 }
 
-function StatusBadge({ model }: { model: ModelItem }) {
+function StatusBadge({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
   const title = statusError(model)
+  const label = activeTarget?.status === 'running' ? '测活中' : activeTarget?.status === 'queued' ? '排队中' : statusLabels[model.status]
+  const active = Boolean(activeTarget)
   return (
-    <span className={`status status-${model.status}`} title={title || statusLabels[model.status]}>
-      {model.status === 'pending' && <LoaderCircle size={13} className="spin" />}
-      <span className="status-dot" />{statusLabels[model.status]}
+    <span className={`status status-${active ? 'pending' : model.status}`} title={title || label}>
+      {active && <LoaderCircle size={13} className={activeTarget?.status === 'running' ? 'spin' : ''} />}
+      <span className="status-dot" />{label}
     </span>
   )
+}
+
+function AttemptDetails({ model }: { model: ModelItem }) {
+  const failures = model.attempts
+    .map((attempt, index) => ({ attempt, number: index + 1 }))
+    .filter(({ attempt }) => !attempt.ok)
+  if (!failures.length) return null
+  return <details className="attempt-details">
+    <summary>查看失败明细（{failures.length}）</summary>
+    <div>
+      {failures.map(({ attempt, number }) => <p key={number}>
+        <strong>第{number}次</strong>
+        <span>{attempt.error || '测活失败，未返回错误信息'}</span>
+        <small>{attempt.httpStatus ? `HTTP ${attempt.httpStatus}` : '未建立有效响应'} · {fmtMs(attempt.totalMs)}</small>
+      </p>)}
+    </div>
+  </details>
 }
 
 function Modal({ title, children, onClose, wide = false }: {
@@ -173,7 +233,7 @@ function emptyManualGroup(): ManualGroupForm {
   return { clientId: crypto.randomUUID(), name: '', ratio: 1, apiKey: '', hasKey: false }
 }
 
-function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: () => void; onSaved: () => void }) {
+function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: () => void; onSaved: (runHealth: boolean) => void }) {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(Boolean(siteId))
   const [error, setError] = useState('')
@@ -184,6 +244,7 @@ function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: ()
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set())
   const [prepared, setPrepared] = useState<PreparedGroup[]>([])
   const [selectedModels, setSelectedModels] = useState<Map<number, Set<number>>>(new Map())
+  const [savingWithHealth, setSavingWithHealth] = useState(true)
 
   async function cancel() {
     if (editor?.draftId) {
@@ -252,14 +313,14 @@ function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: ()
     finally { setLoading(false) }
   }
 
-  async function finish() {
+  async function finish(runHealth: boolean) {
     if (!editor) return
     const selections = prepared.map((group) => ({ groupId: group.id, modelIds: [...(selectedModels.get(group.id) || [])] }))
     if (selections.some((item) => !item.modelIds.length)) { setError('每个分组至少选择一个模型'); return }
-    setLoading(true); setError('')
+    setSavingWithHealth(runHealth); setLoading(true); setError('')
     try {
       if (!editor.draftId) throw new Error('配置草稿不存在，请重新探测站点')
-      await api.configure(editor.draftId, selections); onSaved(); onClose()
+      await api.configure(editor.draftId, selections, runHealth); onSaved(runHealth); onClose()
     }
     catch (err) { setError(err instanceof Error ? err.message : String(err)) }
     finally { setLoading(false) }
@@ -275,7 +336,7 @@ function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: ()
   return (
     <Modal title={siteId ? '编辑站点' : '添加站点'} onClose={() => void cancel()} wide>
       <Steps step={step} manual={mode === 'manual'} />
-      {loading && <div className="modal-loading"><LoaderCircle className="spin" size={28} /><span>{step === 1 ? (mode === 'manual' ? '正在验证 API Key 并获取模型' : '正在识别站点并获取账户信息') : step === 2 ? '正在准备分组 Key 与模型' : '正在保存并启动测活'}</span></div>}
+      {loading && <div className="modal-loading"><LoaderCircle className="spin" size={28} /><span>{step === 1 ? (mode === 'manual' ? '正在验证 API Key 并获取模型' : '正在识别站点并获取账户信息') : step === 2 ? '正在准备分组 Key 与模型' : savingWithHealth ? '正在保存并启动测活' : '正在保存配置'}</span></div>}
       {!loading && step === 1 && <form onSubmit={discover}>
         <div className="modal-body form-grid two-cols">
           <div className="mode-switch full" role="group" aria-label="接入方式"><button type="button" className={mode === 'auto' ? 'active' : ''} onClick={() => setMode('auto')}>自动登录</button><button type="button" className={mode === 'manual' ? 'active' : ''} onClick={() => setMode('manual')}>手动 API Key</button></div>
@@ -320,40 +381,66 @@ function SiteWizard({ siteId, onClose, onSaved }: { siteId?: number; onClose: ()
           </section>)}
           {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
         </div>
-        <footer className="modal-footer"><button className="button ghost" onClick={() => setStep(mode === 'manual' ? 1 : 2)}><ArrowLeft size={16} />返回</button><button className="button primary" onClick={finish}>保存并测活<Check size={16} /></button></footer>
+        <footer className="modal-footer"><button className="button ghost" onClick={() => setStep(mode === 'manual' ? 1 : 2)}><ArrowLeft size={16} />返回</button><button className="button ghost" onClick={() => void finish(false)}>保存</button><button className="button primary" onClick={() => void finish(true)}>保存并测活<Check size={16} /></button></footer>
       </>}
     </Modal>
   )
 }
 
-function ModelTable({ group, recommended, onHealth }: { group: GroupItem; recommended: boolean; onHealth: (scope: Record<string, number>) => void }) {
+type HealthScope = { siteId?: number; groupId?: number; modelId?: number }
+
+function ModelTable({ group, recommended, onHealth, activeTargetFor }: {
+  group: GroupItem
+  recommended: boolean
+  onHealth: (scope: HealthScope) => void
+  activeTargetFor: (modelId: number) => HealthJobTarget | undefined
+}) {
   const models = useMemo(() => recommended ? [...group.models].sort((a, b) => scoreModel(b, group.standardRatio) - scoreModel(a, group.standardRatio)) : group.models, [group, recommended])
   return <div className="model-table">
-    <div className="model-head"><span>模型</span><span>成功率</span><span>平均首字</span><span>平均耗时</span><span>平均 TTFT</span><span>结果</span><span /></div>
-    {models.map((model, index) => <div className="model-row" key={model.id}>
+    <div className="model-head"><span>模型</span><span>成功率</span><span title="从请求发出到收到响应首字节的平均时间（TTFB）">平均首字</span><span>平均耗时</span><span title="从请求发出到收到首个非空文本 token 的平均时间">平均 TTFT</span><span>结果</span><span /></div>
+    {models.map((model, index) => {
+      const activeTarget = activeTargetFor(model.id)
+      const checking = Boolean(activeTarget)
+      return <div className={`model-row ${activeTarget?.status === 'running' ? 'checking' : activeTarget?.status === 'queued' ? 'queued' : ''}`} key={model.id}>
       <div className="model-name"><span className="rank">{recommended ? index + 1 : ''}</span><Bot size={15} /><b title={model.name}>{model.name}</b></div>
-      <div data-label="成功率"><strong>{model.successCount == null ? '--' : `${model.successCount}/${model.attemptCount}`}</strong></div>
-      <div data-label="平均首字">{fmtMs(model.avgTtfbMs)}</div><div data-label="平均耗时">{fmtMs(model.avgTotalMs)}</div><div data-label="平均 TTFT">{fmtMs(model.avgTtftMs)}</div>
-      <div data-label="结果"><StatusBadge model={model} /></div>
-      <IconButton title="测活此模型" onClick={() => onHealth({ modelId: model.id })}><RefreshCw size={15} /></IconButton>
-    </div>)}
+      <div data-label="成功率"><SuccessValue model={model} activeTarget={activeTarget} /></div>
+      <div data-label="平均首字"><MetricValue metric="ttfb" value={model.avgTtfbMs} label="平均首字（TTFB，首响应字节）" /></div>
+      <div data-label="平均耗时"><MetricValue metric="total" value={model.avgTotalMs} label="平均耗时" /></div>
+      <div data-label="平均 TTFT"><MetricValue metric="ttft" value={model.avgTtftMs} label="平均 TTFT（首个非空文本 token）" /></div>
+      <div data-label="结果"><StatusBadge model={model} activeTarget={activeTarget} /></div>
+      <IconButton title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'} disabled={checking} onClick={() => onHealth({ modelId: model.id })}><RefreshCw className={activeTarget?.status === 'running' ? 'spin' : ''} size={15} /></IconButton>
+      <AttemptDetails model={model} />
+    </div>
+    })}
   </div>
 }
 
-function SitePanel({ site, recommended, onEdit, onDelete, onHealth, onChanged, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
+function SitePanel({ site, recommended, onEdit, onDelete, onHealth, isHealthActive, activeTargetFor, onChanged, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
   site: SiteItem; recommended: boolean; onEdit: () => void; onDelete: () => void;
-  onHealth: (scope: Record<string, number>) => void; onChanged: () => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
+  onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
   dragging: { kind: 'site' | 'group'; id: number } | null; setDragging: (value: { kind: 'site' | 'group'; id: number } | null) => void
 }) {
   const [localGroups, setLocalGroups] = useState(site.groups)
+  const [siteExpanded, setSiteExpanded] = useState(site.expanded)
   useEffect(() => setLocalGroups(site.groups), [site.groups])
+  useEffect(() => setSiteExpanded(site.expanded), [site.id, site.expanded])
   const groups = recommended ? [...localGroups].sort((a, b) => {
     const bestA = Math.max(...a.models.map((m) => scoreModel(m, a.standardRatio)), -1_000_000)
     const bestB = Math.max(...b.models.map((m) => scoreModel(m, b.standardRatio)), -1_000_000)
     return bestB - bestA
   }) : localGroups
-  async function toggleSite() { await api.expanded('site', site.id, !site.expanded); onChanged() }
-  async function toggleGroup(group: GroupItem) { await api.expanded('group', group.id, !group.expanded); onChanged() }
+  async function toggleSite() {
+    const next = !siteExpanded
+    setSiteExpanded(next)
+    try { await api.expanded('site', site.id, next); onChanged() }
+    catch { setSiteExpanded(!next) }
+  }
+  async function toggleGroup(group: GroupItem) {
+    const next = !group.expanded
+    setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: next } : item))
+    try { await api.expanded('group', group.id, next); onChanged() }
+    catch { setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: !next } : item)) }
+  }
   async function dropGroup(targetId: number) {
     if (recommended || dragging?.kind !== 'group' || dragging.id === targetId) return
     const from = localGroups.findIndex((g) => g.id === dragging.id); const to = localGroups.findIndex((g) => g.id === targetId)
@@ -370,28 +457,32 @@ function SitePanel({ site, recommended, onEdit, onDelete, onHealth, onChanged, o
     setLocalGroups(next)
     await api.reorder('group', next.map((group) => group.id)); onChanged()
   }
+  const siteChecking = isHealthActive({ siteId: site.id })
   return <article className="site-panel">
     <header className="site-header">
       <button className="drag-handle" title="拖动排序" draggable={!recommended} onDragStart={() => setDragging({ kind: 'site', id: site.id })} disabled={recommended}><GripVertical size={18} /></button>
-      <button className="collapse" onClick={toggleSite} title={site.expanded ? '收起站点' : '展开站点'}>{site.expanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
+      <button className="collapse" onClick={() => void toggleSite()} title={siteExpanded ? '收起站点' : '展开站点'}>{siteExpanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
       <div className="site-identity"><div className="site-mark">{site.name.slice(0, 1).toUpperCase()}</div><div><h2>{site.name}</h2><a href={site.baseUrl} target="_blank" rel="noreferrer">{site.baseUrl}</a></div></div>
       <span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>{site.connectionMode === 'manual' ? '手动接入' : site.type === 'newapi' ? 'New API' : 'Sub2API'}</span>
       <div className="site-balance"><small>账户余额</small><strong>{site.balanceKnown ? `$${site.balance.toFixed(2)}` : '--'}</strong></div>
       <div className="site-updated"><small>最近测活</small><span>{fmtTime(site.lastCheckAt)}</span></div>
-      <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span><IconButton title="测活此站点" onClick={() => onHealth({ siteId: site.id })}><RefreshCw size={16} /></IconButton><IconButton title="编辑站点" onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title="删除站点" tone="danger" onClick={onDelete}><Trash2 size={16} /></IconButton></div>
+      <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span><IconButton title={siteChecking ? '此站点正在测活' : '测活此站点'} disabled={siteChecking} onClick={() => onHealth({ siteId: site.id })}><RefreshCw className={siteChecking ? 'spin' : ''} size={16} /></IconButton><IconButton title="编辑站点" onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title="删除站点" tone="danger" onClick={onDelete}><Trash2 size={16} /></IconButton></div>
     </header>
-    {site.expanded && <div className="groups">
-      {groups.map((group, groupIndex) => <section className="group" key={group.id} onDragOver={(e) => !recommended && e.preventDefault()} onDrop={() => dropGroup(group.id)}>
+    {siteExpanded && <div className="groups">
+      {groups.map((group, groupIndex) => {
+        const groupChecking = isHealthActive({ groupId: group.id })
+        return <section className="group" key={group.id} onDragOver={(e) => !recommended && e.preventDefault()} onDrop={() => dropGroup(group.id)}>
         <header className="group-header">
           <button className="drag-handle" title="拖动排序" draggable={!recommended} onDragStart={(e) => { e.stopPropagation(); setDragging({ kind: 'group', id: group.id }) }} disabled={recommended}><GripVertical size={16} /></button>
-          <button className="collapse" onClick={() => toggleGroup(group)} title={group.expanded ? '收起分组' : '展开分组'}>{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
+          <button className="collapse" onClick={() => void toggleGroup(group)} title={group.expanded ? '收起分组' : '展开分组'}>{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
           <div className="group-title"><h3>{group.name}</h3>{group.platform && <span>{group.platform}</span>}</div>
           <div className="ratio"><small>分组倍率</small><b>{group.ratioDynamic ? '自动' : `x${group.ratio}`}</b></div><div className="ratio standard"><small>标准倍率</small><b>{group.standardRatio == null ? '--' : `x${group.standardRatio.toFixed(3)}`}</b></div>
           <span className="model-count">{group.models.length} 个模型</span>
-          <div className="group-actions"><span className="mobile-order"><IconButton title="分组上移" disabled={recommended || groupIndex === 0} onClick={() => void moveGroup(groupIndex, -1)}><MoveUp size={14} /></IconButton><IconButton title="分组下移" disabled={recommended || groupIndex === groups.length - 1} onClick={() => void moveGroup(groupIndex, 1)}><MoveDown size={14} /></IconButton></span><IconButton title="测活此分组" onClick={() => onHealth({ groupId: group.id })}><RefreshCw size={15} /></IconButton></div>
+          <div className="group-actions"><span className="mobile-order"><IconButton title="分组上移" disabled={recommended || groupIndex === 0} onClick={() => void moveGroup(groupIndex, -1)}><MoveUp size={14} /></IconButton><IconButton title="分组下移" disabled={recommended || groupIndex === groups.length - 1} onClick={() => void moveGroup(groupIndex, 1)}><MoveDown size={14} /></IconButton></span><IconButton title={groupChecking ? '此分组正在测活' : '测活此分组'} disabled={groupChecking} onClick={() => onHealth({ groupId: group.id })}><RefreshCw className={groupChecking ? 'spin' : ''} size={15} /></IconButton></div>
         </header>
-        {group.expanded && <ModelTable group={group} recommended={recommended} onHealth={onHealth} />}
-      </section>)}
+        {group.expanded && <ModelTable group={group} recommended={recommended} onHealth={onHealth} activeTargetFor={activeTargetFor} />}
+      </section>
+      })}
       {!groups.length && <div className="empty-inline">尚未选择分组，编辑站点以完成配置。</div>}
     </div>}
   </article>
@@ -407,6 +498,8 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [recommended, setRecommended] = useState(false)
   const [dragging, setDragging] = useState<{ kind: 'site' | 'group'; id: number } | null>(null)
+  const [pendingHealthKeys, setPendingHealthKeys] = useState<Set<string>>(new Set())
+  const pendingHealthRef = useRef(new Set<string>())
 
   async function load(silent = false) {
     try {
@@ -428,9 +521,28 @@ export function App() {
   }, [auth?.authenticated])
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 2800); return () => clearTimeout(timer) }, [toast])
 
-  async function health(scope: Record<string, number> = {}) {
-    try { const job = await api.health(scope); setJobs((current) => [job, ...current]); setToast('测活任务已开始'); void load(true) }
+  function healthKey(scope: HealthScope): string {
+    if (scope.modelId) return `model:${scope.modelId}`
+    if (scope.groupId) return `group:${scope.groupId}`
+    if (scope.siteId) return `site:${scope.siteId}`
+    return 'all'
+  }
+  async function health(scope: HealthScope = {}) {
+    const key = healthKey(scope)
+    if (pendingHealthRef.current.has(key)) return
+    pendingHealthRef.current.add(key)
+    setPendingHealthKeys(new Set(pendingHealthRef.current))
+    try {
+      const job = await api.health(scope)
+      setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)])
+      setToast(job.deduplicated ? '重复模型已在测活，本次未重复排队' : '测活任务已开始')
+      void load(true)
+    }
     catch (err) { setToast(err instanceof Error ? err.message : String(err)) }
+    finally {
+      pendingHealthRef.current.delete(key)
+      setPendingHealthKeys(new Set(pendingHealthRef.current))
+    }
   }
   async function remove(site: SiteItem) {
     if (!window.confirm(`删除站点「${site.name}」及其本地监控数据？远端 API Key 不会删除。`)) return
@@ -464,7 +576,22 @@ export function App() {
       setSettingsOpen(false)
     }
   }
-  const activeJob = jobs.find((job) => job.status === 'running' || job.status === 'queued')
+  const activeJobs = jobs.filter((job) => job.status === 'running' || job.status === 'queued')
+  const activeTargets = activeJobs.flatMap((job) => job.targets || []).filter((target) => target.status === 'queued' || target.status === 'running')
+  const runningTargets = activeTargets.filter((target) => target.status === 'running')
+  const activeTotal = activeJobs.reduce((sum, job) => sum + job.total, 0)
+  const activeCompleted = activeJobs.reduce((sum, job) => sum + job.completed, 0)
+  const activeLabel = runningTargets.length
+    ? `正在测活：${runningTargets.map((target) => `${target.label}（第${target.attempt || 1}/${target.attemptCount}次）`).join('；')}`
+    : activeTargets.length ? `等待测活：${activeTargets.map((target) => target.label).join('；')}` : '任务排队中'
+  const isHealthActive = (scope: HealthScope): boolean => {
+    if (pendingHealthKeys.has(healthKey(scope))) return true
+    if (scope.modelId) return activeTargets.some((target) => target.modelId === scope.modelId)
+    if (scope.groupId) return activeTargets.some((target) => target.groupId === scope.groupId)
+    if (scope.siteId) return activeTargets.some((target) => target.siteId === scope.siteId)
+    return activeJobs.length > 0
+  }
+  const activeTargetFor = (modelId: number): HealthJobTarget | undefined => activeTargets.find((target) => target.modelId === modelId)
   if (!auth) return <div className="app-loading"><div className="logo-mark"><Activity /></div><LoaderCircle className="spin" /><span>{error || '正在检查访问权限'}</span></div>
   if (!auth.authenticated) return <AuthScreen status={auth} onAuthenticated={() => void signedIn()} />
   if (!dashboard) return <div className="app-loading"><div className="logo-mark"><Activity /></div><LoaderCircle className="spin" /><span>{error || '正在载入监控台'}</span></div>
@@ -473,10 +600,10 @@ export function App() {
     <aside className="sidebar">
       <div className="brand"><div className="logo-mark"><Activity size={21} /></div><div><strong>AIMon</strong><span>CHANNEL OBSERVER</span></div></div>
       <nav><button className="active"><Gauge size={18} /><span>渠道监控</span></button></nav>
-      <div className="sidebar-foot"><div className={`pulse-state ${activeJob ? 'busy' : ''}`}><span />{activeJob ? '正在测活' : '监控就绪'}</div><button onClick={() => setSettingsOpen(true)}><SettingsIcon size={18} /><span>默认配置</span></button><button onClick={() => void signOut()}><LogOut size={18} /><span>退出登录</span></button></div>
+      <div className="sidebar-foot"><div className={`pulse-state ${activeJobs.length ? 'busy' : ''}`}><span />{activeJobs.length ? '正在测活' : '监控就绪'}</div><button onClick={() => setSettingsOpen(true)}><SettingsIcon size={18} /><span>默认配置</span></button><button onClick={() => void signOut()}><LogOut size={18} /><span>退出登录</span></button></div>
     </aside>
     <main>
-      <header className="topbar"><div><h1>渠道监控</h1><p>站点、分组与模型运行状态</p></div><div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" onClick={() => void health()}><RefreshCw size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div></header>
+      <header className="topbar"><div><h1>渠道监控</h1><p>站点、分组与模型运行状态</p></div><div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" disabled={isHealthActive({})} onClick={() => void health()}><RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div></header>
       <section className="summary-band">
         <div><span className="summary-icon green"><Server size={18} /></span><p><small>接入站点</small><strong>{dashboard.summary.sites}</strong></p></div>
         <div><span className="summary-icon blue"><Layers3 size={18} /></span><p><small>监控分组</small><strong>{dashboard.summary.groups}</strong></p></div>
@@ -484,14 +611,14 @@ export function App() {
         <div><span className="summary-icon coral"><Activity size={18} /></span><p><small>优质模型</small><strong>{dashboard.summary.excellent}<em> / {dashboard.summary.models}</em></strong></p></div>
         <div><span className="summary-icon gray"><WalletCards size={18} /></span><p><small>自动测活</small><strong>{dashboard.settings.autoCheckMinutes ? `${dashboard.settings.autoCheckMinutes}m` : '关闭'}</strong></p></div>
       </section>
-      {activeJob && <div className="job-strip"><LoaderCircle size={16} className="spin" /><span>{activeJob.current || '任务排队中'}</span><div className="job-progress"><i style={{ width: `${activeJob.total ? activeJob.completed / activeJob.total * 100 : 0}%` }} /></div><b>{activeJob.completed}/{activeJob.total}</b></div>}
+      {activeJobs.length > 0 && <div className="job-strip" title={activeLabel}><LoaderCircle size={16} className="spin" /><span>{activeLabel}</span><div className="job-progress"><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
       {error && <div className="page-error"><CircleAlert size={18} />{error}<button onClick={() => void load()}>重试</button></div>}
       <section className="site-list">
-        {dashboard.sites.map((site, index) => <div key={site.id} onDragOver={(e) => !recommended && e.preventDefault()} onDrop={() => void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} onHealth={(scope) => void health(scope)} onChanged={() => void load(true)} dragging={dragging} setDragging={setDragging} /></div>)}
+        {dashboard.sites.map((site, index) => <div key={site.id} onDragOver={(e) => !recommended && e.preventDefault()} onDrop={() => void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void load(true)} dragging={dragging} setDragging={setDragging} /></div>)}
         {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
       </section>
     </main>
-    {wizard && <SiteWizard siteId={wizard.siteId} onClose={() => setWizard(null)} onSaved={() => { setToast('配置已保存，测活任务已启动'); void load(true) }} />}
+    {wizard && <SiteWizard siteId={wizard.siteId} onClose={() => setWizard(null)} onSaved={(runHealth) => { setToast(runHealth ? '配置已保存，测活任务已启动' : '配置已保存'); void load(true) }} />}
     {settingsOpen && <SettingsModal current={dashboard.settings} onClose={() => setSettingsOpen(false)} onSaved={() => { setToast('默认配置已保存'); void load() }} />}
     {toast && <div className="toast">{toast}</div>}
   </div>

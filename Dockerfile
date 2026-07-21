@@ -7,7 +7,7 @@ RUN npm run build
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
-ENV NODE_ENV=production PORT=8787 DATA_DIR=/app/data CLOAKBROWSER_AUTO_UPDATE=false
+ENV NODE_ENV=production PORT=8787 DATA_DIR=/app/data REQUIRE_PERSISTENT_DATA=true CLOAKBROWSER_AUTO_UPDATE=false
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdbus-1-3 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 \
@@ -25,5 +25,5 @@ RUN npm ci --omit=dev \
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 EXPOSE 8787
-VOLUME ["/app/data", "/root/.cloakbrowser"]
+VOLUME ["/root/.cloakbrowser"]
 CMD ["node", "dist-server/index.js"]

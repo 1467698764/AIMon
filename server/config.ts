@@ -14,6 +14,7 @@ if (isProduction && secret === 'aimon-development-only-change-me') {
 
 const basicAuthUser = process.env.AIMON_BASIC_USER || ''
 const basicAuthPassword = process.env.AIMON_BASIC_PASSWORD || ''
+const requirePersistentData = process.env.REQUIRE_PERSISTENT_DATA === 'true'
 
 export const config = {
   port: Number(process.env.PORT || 8787),
@@ -23,6 +24,7 @@ export const config = {
   healthAttempts: Math.floor(positiveNumber(process.env.HEALTH_ATTEMPTS, 3, 1)),
   basicAuthUser,
   basicAuthPassword,
+  requirePersistentData,
   cloakBrowserEnabled: process.env.CLOAKBROWSER_ENABLED !== 'false',
   cloakBrowserHeadless: process.env.CLOAKBROWSER_HEADLESS !== 'false',
   cloakBrowserTimeoutMs: positiveNumber(process.env.CLOAKBROWSER_TIMEOUT_MS, 60_000, 10_000),

@@ -1,9 +1,9 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { config } from './config.js'
+import { prepareDataDirectory } from './storage.js'
 
-fs.mkdirSync(config.dataDir, { recursive: true })
+prepareDataDirectory(config.dataDir, config.requirePersistentData)
 
 export const db = new DatabaseSync(path.join(config.dataDir, 'aimon.sqlite'))
 db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;')

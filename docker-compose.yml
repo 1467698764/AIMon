@@ -20,6 +20,7 @@ services:
       CLOAKBROWSER_AUTO_UPDATE: "false"
       CLOAKBROWSER_LICENSE_KEY: ${CLOAKBROWSER_LICENSE_KEY:-}
       DATA_DIR: /app/data
+      REQUIRE_PERSISTENT_DATA: "true"
       PORT: 8787
     volumes:
       - ./data:/app/data

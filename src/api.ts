@@ -38,9 +38,9 @@ export const api = {
     request<{ draftId: number; groups: PreparedGroup[] }>(`/api/drafts/${draftId}/prepare`, {
       method: 'POST', body: JSON.stringify({ groupIds }),
     }),
-  configure: (draftId: number, selections: Array<{ groupId: number; modelIds: number[] }>) =>
-    request<{ ok: true; job: HealthJob }>(`/api/drafts/${draftId}/configure`, {
-      method: 'POST', body: JSON.stringify({ selections }),
+  configure: (draftId: number, selections: Array<{ groupId: number; modelIds: number[] }>, runHealth = true) =>
+    request<{ ok: true; job?: HealthJob }>(`/api/drafts/${draftId}/configure`, {
+      method: 'POST', body: JSON.stringify({ selections, runHealth }),
     }),
   deleteSite: (id: number) => request<void>(`/api/sites/${id}`, { method: 'DELETE' }),
   discardDraft: (id: number) => request<void>(`/api/drafts/${id}`, { method: 'DELETE' }),

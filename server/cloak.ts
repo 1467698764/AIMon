@@ -410,11 +410,44 @@ export async function browserFetch(
           let text = ''
           let scanBuffer = ''
           let bytes = 0
+          let firstBodyAt: number | null = null
           let ttftMs: number | null = null
+          const hasGeneratedText = (value: any): boolean => {
+            if (!value || typeof value !== 'object') return false
+            const direct = [
+              value.output_text,
+              value.text,
+              value.content,
+              value.choices?.[0]?.delta?.content,
+              value.choices?.[0]?.message?.content,
+            ]
+            if (direct.some((item) => typeof item === 'string' && item.trim())) return true
+            if (typeof value.delta === 'string' && value.delta.trim()) {
+              const eventType = typeof value.type === 'string' ? value.type : ''
+              if (!eventType || /(?:output_)?text.*delta|delta.*(?:output_)?text/i.test(eventType)) return true
+            }
+            return Array.isArray(value.output) && value.output.some((item: any) => Array.isArray(item?.content)
+              && item.content.some((content: any) => {
+                const generated = content?.text || content?.output_text
+                return typeof generated === 'string' && generated.trim()
+              }))
+          }
+          const containsGeneratedText = (payload: string): boolean => {
+            const trimmed = payload.trim()
+            try {
+              if (hasGeneratedText(JSON.parse(trimmed))) return true
+            } catch { /* Streaming payloads are parsed line by line below. */ }
+            return payload.split(/\r?\n/).some((line) => {
+              const data = line.match(/^data:\s*(.+)$/i)?.[1]?.trim()
+              if (!data || data === '[DONE]') return false
+              try { return hasGeneratedText(JSON.parse(data)) } catch { return false }
+            })
+          }
           if (reader) {
             while (true) {
               const chunk = await reader.read()
               if (chunk.done) break
+              if (firstBodyAt == null && chunk.value.byteLength > 0) firstBodyAt = performance.now()
               bytes += chunk.value.byteLength
               if (bytes > 8 * 1024 * 1024) {
                 controller.abort()
@@ -422,12 +455,15 @@ export async function browserFetch(
               }
               const decoded = decoder.decode(chunk.value, { stream: true })
               text += decoded
-              scanBuffer = `${scanBuffer}${decoded}`.slice(-2_048)
-              if (ttftMs == null && /"(?:content|text|output_text|delta)"\s*:\s*"[^"\\]/i.test(scanBuffer)) {
+              scanBuffer = `${scanBuffer}${decoded}`.slice(-16_384)
+              if (ttftMs == null && containsGeneratedText(scanBuffer)) {
                 ttftMs = performance.now() - started
               }
             }
-            text += decoder.decode()
+            const tail = decoder.decode()
+            text += tail
+            scanBuffer = `${scanBuffer}${tail}`.slice(-16_384)
+            if (ttftMs == null && containsGeneratedText(scanBuffer)) ttftMs = performance.now() - started
           }
           return {
             status: response.status,
@@ -436,7 +472,7 @@ export async function browserFetch(
             text,
             redirected: response.redirected,
             finalUrl: response.url,
-            ttfbMs: headersAt - started,
+            ttfbMs: (firstBodyAt ?? headersAt) - started,
             ttftMs,
             totalMs: performance.now() - started,
           }

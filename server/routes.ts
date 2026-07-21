@@ -67,14 +67,15 @@ router.post('/drafts/:id/prepare', asyncHandler(async (req, res) => {
 }))
 router.post('/drafts/:id/configure', (req, res) => {
   const input = z.object({
+    runHealth: z.boolean().optional().default(true),
     selections: z.array(z.object({
       groupId: z.number().int().positive(),
       modelIds: z.array(z.number().int().positive()).min(1),
     })).min(1),
   }).parse(req.body)
   const siteId = configureSite(Number(req.params.id), input.selections)
-  const job = startHealthCheck({ siteId })
-  res.json({ ok: true, job })
+  const job = input.runHealth ? startHealthCheck({ siteId }) : undefined
+  res.json({ ok: true, ...(job ? { job } : {}) })
 })
 router.delete('/drafts/:id', (req, res) => {
   discardDraft(Number(req.params.id))

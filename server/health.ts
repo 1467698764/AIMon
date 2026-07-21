@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { config } from './config.js'
 import { db, nowIso } from './db.js'
 import { extractMessage, remoteFetch } from './http.js'
+import { hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
 import { getHealthTargets } from './site-service.js'
 import type { HealthAttempt, HealthStatus } from './types.js'
 
@@ -17,9 +18,21 @@ export interface HealthJob {
   total: number
   completed: number
   current: string
+  targets: HealthJobTarget[]
   createdAt: string
   finishedAt?: string
   error?: string
+  deduplicated?: boolean
+}
+
+export interface HealthJobTarget {
+  siteId: number
+  groupId: number
+  modelId: number
+  label: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  attempt: number
+  attemptCount: number
 }
 
 class Semaphore {
@@ -44,6 +57,7 @@ const jobs = new Map<string, HealthJob>()
 const jobPromises = new Map<string, Promise<void>>()
 const siteSemaphores = new Map<number, Semaphore>()
 const activeModels = new Map<number, { signature: string; promise: Promise<void>; checkId: number }>()
+const activeTargetJobs = new Map<number, string>()
 
 function getSiteSemaphore(siteId: number): Semaphore {
   let semaphore = siteSemaphores.get(siteId)
@@ -58,25 +72,6 @@ function average(values: Array<number | null>): number | null {
   const valid = values.filter((value): value is number => value != null && Number.isFinite(value))
   if (!valid.length) return null
   return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10
-}
-
-function hasGeneratedText(value: any): boolean {
-  if (!value || typeof value !== 'object') return false
-  const candidates = [
-    value.output_text,
-    value.delta,
-    value.text,
-    value.content,
-    value.choices?.[0]?.delta?.content,
-    value.choices?.[0]?.message?.content,
-  ]
-  if (candidates.some((item) => typeof item === 'string' && item.trim())) return true
-  if (!Array.isArray(value.output)) return false
-  return value.output.some((item: any) => Array.isArray(item?.content)
-    && item.content.some((content: any) => {
-      const text = content?.text || content?.output_text
-      return typeof text === 'string' && text.trim()
-    }))
 }
 
 function inspectProtocolBody(body: string): { hasText: boolean; error: string } {
@@ -142,11 +137,7 @@ async function streamingAttempt(
         scanBuffer += chunk
         const lines = scanBuffer.split(/\r?\n/)
         scanBuffer = lines.pop() || ''
-        if (firstToken == null && lines.some((line) => {
-          const data = line.match(/^data:\s*(.+)$/i)?.[1]?.trim()
-          if (!data || data === '[DONE]') return false
-          try { return hasGeneratedText(JSON.parse(data)) } catch { return false }
-        })) firstToken = elapsed
+        if (firstToken == null && sseLinesContainGeneratedText(lines)) firstToken = elapsed
       }
       const tail = decoder.decode()
       if (responseBody.length < 16_384) responseBody += tail.slice(0, 16_384 - responseBody.length)
@@ -331,9 +322,10 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   return result
 }
 
-async function runTarget(target: Record<string, any>, checkId: number): Promise<void> {
+async function runTarget(target: Record<string, any>, checkId: number, onAttempt?: (attempt: number) => void): Promise<void> {
   const attempts: HealthAttempt[] = []
   for (let index = 0; index < config.healthAttempts; index += 1) {
+    onAttempt?.(index + 1)
     let endpointTypes: string[] = []
     try { endpointTypes = JSON.parse(target.endpoint_types_json || '[]') } catch { /* Use compatibility probing. */ }
     attempts.push(await testOnce(target.base_url, target.apiKey, target.model_name, endpointTypes))
@@ -376,12 +368,20 @@ function copyCheck(fromId: number, toId: number): void {
     source.avg_ttft_ms, source.avg_total_ms, source.status, source.attempts_json, toId)
 }
 
-function runModelOnce(target: Record<string, any>, checkId: number): Promise<void> {
+function runModelOnce(
+  target: Record<string, any>,
+  checkId: number,
+  onStart?: () => void,
+  onAttempt?: (attempt: number) => void,
+): Promise<void> {
   const existing = activeModels.get(target.model_id)
   const signature = targetSignature(target)
   if (existing?.signature === signature) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
-  const task = () => getSiteSemaphore(target.site_id).run(() => runTarget(target, checkId))
+  const task = () => getSiteSemaphore(target.site_id).run(async () => {
+    onStart?.()
+    await runTarget(target, checkId, onAttempt)
+  })
   const promise = (existing ? existing.promise.catch(() => undefined).then(task) : task())
     .catch((error) => {
       db.prepare(`UPDATE health_checks SET checked_at = ?, status = 'failed', attempts_json = ? WHERE id = ?`)
@@ -420,30 +420,59 @@ function updateSiteResults(targets: Array<Record<string, any>>): void {
 }
 
 export function startHealthCheck(scope: HealthScope = {}): HealthJob {
-  const targets: Array<Record<string, any>> = getHealthTargets(scope)
-  if (!targets.length) throw new Error('当前范围内没有已选择的模型')
+  const requestedTargets: Array<Record<string, any>> = getHealthTargets(scope)
+  if (!requestedTargets.length) throw new Error('当前范围内没有已选择的模型')
+  const targets = requestedTargets.filter((target) => !activeTargetJobs.has(Number(target.model_id)))
+  if (!targets.length) {
+    const existing = requestedTargets
+      .map((target) => jobs.get(activeTargetJobs.get(Number(target.model_id)) || ''))
+      .find((job): job is HealthJob => Boolean(job && (job.status === 'queued' || job.status === 'running')))
+    if (existing) return { ...existing, deduplicated: true }
+  }
+  if (!targets.length) throw new Error('当前范围内的模型已在测活')
   const job: HealthJob = {
     id: randomUUID(),
     status: 'queued',
     total: targets.length,
     completed: 0,
     current: '',
+    targets: targets.map((target) => ({
+      siteId: Number(target.site_id),
+      groupId: Number(target.group_id),
+      modelId: Number(target.model_id),
+      label: `${target.site_name} / ${target.group_name} / ${target.model_name}`,
+      status: 'queued',
+      attempt: 0,
+      attemptCount: config.healthAttempts,
+    })),
     createdAt: nowIso(),
+    deduplicated: targets.length < requestedTargets.length || undefined,
   }
   jobs.set(job.id, job)
   const checkIds = targets.map((target) => Number(db.prepare(`
     INSERT INTO health_checks (model_id, checked_at, attempt_count, status) VALUES (?, ?, ?, 'pending')
   `).run(target.model_id, nowIso(), config.healthAttempts).lastInsertRowid))
+  for (const target of targets) activeTargetJobs.set(Number(target.model_id), job.id)
 
   const promise = (async () => {
     job.status = 'running'
     try {
       const results = await Promise.allSettled(targets.map(async (target, index) => {
-        job.current = `${target.site_name} / ${target.group_name} / ${target.model_name}`
+        const jobTarget = job.targets[index]
         try {
-          await runModelOnce(target, checkIds[index])
+          await runModelOnce(target, checkIds[index], () => {
+            jobTarget.status = 'running'
+            job.current = jobTarget.label
+          }, (attempt) => {
+            jobTarget.attempt = attempt
+          })
+          jobTarget.status = 'completed'
+        } catch (error) {
+          jobTarget.status = 'failed'
+          throw error
         } finally {
           job.completed += 1
+          if (activeTargetJobs.get(jobTarget.modelId) === job.id) activeTargetJobs.delete(jobTarget.modelId)
         }
       }))
       const failedCount = results.filter((result) => result.status === 'rejected').length
@@ -454,6 +483,9 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
       job.status = 'failed'
       job.error = error instanceof Error ? error.message : String(error)
     } finally {
+      for (const target of job.targets) {
+        if (activeTargetJobs.get(target.modelId) === job.id) activeTargetJobs.delete(target.modelId)
+      }
       updateSiteResults(targets)
       job.finishedAt = nowIso()
       pruneJobs()

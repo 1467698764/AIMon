@@ -111,7 +111,19 @@ export interface HealthJob {
   total: number
   completed: number
   current: string
+  targets: HealthJobTarget[]
   createdAt: string
   finishedAt?: string
   error?: string
+  deduplicated?: boolean
+}
+
+export interface HealthJobTarget {
+  siteId: number
+  groupId: number
+  modelId: number
+  label: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  attempt: number
+  attemptCount: number
 }
