@@ -77,12 +77,23 @@ describe('New API adapter', () => {
     expect(snapshot.groups[0]).toEqual({ externalId: 'auto', name: 'auto', ratio: 1, ratioDynamic: true })
   })
 
+  it('accepts numeric group ratios returned as strings by modified sites', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/api/user/self')) return json({ success: true, data: { quota: 0 } })
+      if (url.endsWith('/api/status')) return json({ success: true, data: { quota_per_unit: 500_000 } })
+      if (url.endsWith('/api/user/self/groups')) return json({ success: true, data: { vip: { ratio: '0.8' } } })
+      throw new Error(`unexpected ${url}`)
+    }))
+    const snapshot = await new NewApiAdapter().snapshot('https://new.example', { accessToken: 'token' })
+    expect(snapshot.groups[0]).toEqual({ externalId: 'vip', name: 'vip', ratio: 0.8, ratioDynamic: false })
+  })
+
   it('reads OpenAI-compatible model lists', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json({ object: 'list', data: [{ id: 'gpt-4o' }, { id: 'gpt-4o-mini' }] })))
     await expect(new NewApiAdapter().listModels('https://new.example', 'sk-test'))
       .resolves.toEqual([
-        { name: 'gpt-4o', endpointTypes: [] },
-        { name: 'gpt-4o-mini', endpointTypes: [] },
+        { name: 'gpt-4o', endpointTypes: ['openai'] },
+        { name: 'gpt-4o-mini', endpointTypes: ['openai'] },
       ])
   })
 })

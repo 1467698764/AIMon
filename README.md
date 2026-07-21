@@ -29,7 +29,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-访问 `http://服务器IP:8787`，首次打开会要求设置页面管理密码。设置完成前不要将端口公开给不可信网络。
+访问 `http://服务器IP:8787`。公网首次部署建议提前设置 `AIMON_BOOTSTRAP_PASSWORD`，服务会在数据库为空时自动初始化页面管理密码，避免“谁先打开页面谁设置密码”的窗口；数据库已有管理密码时，此变量不会覆盖现有密码。本地未设置该变量时，首次打开仍会进入密码设置页。
 
 `AIMON_SECRET` 用于加密本地敏感数据。部署后不要随意更换，否则已保存的凭据将无法解密。`data/` 目录包含 SQLite 数据库和 `cloak-profiles/` 浏览器登录会话；两者都应按密码同等级保护并纳入服务器备份，不能提交到 Git。
 
@@ -64,6 +64,7 @@ npm run build
 | `DATA_DIR` | `./data` | SQLite 数据目录 |
 | `REQUIRE_PERSISTENT_DATA` | 本地 `false`，Docker `true` | 启动前要求 `DATA_DIR` 位于 Linux 独立挂载卷中；仅明确使用持久宿主机文件系统时关闭 |
 | `AIMON_SECRET` | 仅开发回退值 | 敏感字段加密密钥，生产必须设置 |
+| `AIMON_BOOTSTRAP_PASSWORD` | 空 | 可选的首次启动页面管理密码，至少 8 字符；仅在数据库尚无管理密码时生效 |
 | `REQUEST_TIMEOUT_MS` | `30000` | 单次远端请求超时 |
 | `HEALTH_ATTEMPTS` | `3` | 单模型测活次数，建议保持 3 |
 | `AIMON_BASIC_USER` | 空 | 可选的第二层 HTTP Basic Auth 用户名，必须与密码同时设置 |

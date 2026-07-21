@@ -32,6 +32,7 @@ db.exec(`
     currency TEXT NOT NULL DEFAULT 'USD',
     recharge_ratio REAL NOT NULL DEFAULT 1,
     connection_mode TEXT NOT NULL DEFAULT 'auto' CHECK (connection_mode IN ('auto', 'manual')),
+    config_revision INTEGER NOT NULL DEFAULT 1,
     configured INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     expanded INTEGER NOT NULL DEFAULT 1,
@@ -79,6 +80,7 @@ db.exec(`
     avg_ttfb_ms REAL,
     avg_ttft_ms REAL,
     avg_total_ms REAL,
+    config_revision INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'pending',
     attempts_json TEXT NOT NULL DEFAULT '[]'
   );
@@ -152,6 +154,8 @@ for (const statement of [
   `ALTER TABLE draft_models ADD COLUMN endpoint_types_json TEXT NOT NULL DEFAULT '[]'`,
   `ALTER TABLE sites ADD COLUMN connection_mode TEXT NOT NULL DEFAULT 'auto'`,
   `ALTER TABLE site_drafts ADD COLUMN connection_mode TEXT NOT NULL DEFAULT 'auto'`,
+  `ALTER TABLE sites ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE health_checks ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
 ]) {
   try {
     db.exec(statement)

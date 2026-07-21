@@ -7,6 +7,7 @@ import {
   unwrap,
 } from '../http.js'
 import { browserLogin } from '../cloak.js'
+import { endpointTypesForModel } from './model-types.js'
 import type {
   Credentials,
   ExistingRemoteKey,
@@ -101,12 +102,16 @@ export class NewApiAdapter implements SiteAdapter {
       readJson(groupsResponse),
     ])
     const quotaPerUnit = Number(status?.quota_per_unit || 500_000)
-    const groups: RemoteGroup[] = Object.entries(groupsRaw || {}).map(([name, info]: [string, any]) => ({
-      externalId: name,
-      name,
-      ratio: typeof info?.ratio === 'number' ? info.ratio : 1,
-      ratioDynamic: typeof info?.ratio !== 'number',
-    }))
+    const groups: RemoteGroup[] = Object.entries(groupsRaw || {}).map(([name, info]: [string, any]) => {
+      const ratio = Number(info?.ratio)
+      const ratioKnown = Number.isFinite(ratio) && ratio > 0
+      return {
+        externalId: name,
+        name,
+        ratio: ratioKnown ? ratio : 1,
+        ratioDynamic: !ratioKnown,
+      }
+    })
     return {
       balance: Number(user?.quota || 0) / quotaPerUnit,
       currency: 'USD',
@@ -215,9 +220,7 @@ export class NewApiAdapter implements SiteAdapter {
     for (const item of Array.isArray(data) ? data : []) {
       const name = String(item?.id || item || '')
       if (!name) continue
-      byName.set(name, Array.isArray(item?.supported_endpoint_types)
-        ? item.supported_endpoint_types.map(String)
-        : [])
+      byName.set(name, endpointTypesForModel(name, item?.supported_endpoint_types))
     }
     return [...byName.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, endpointTypes]) => ({ name, endpointTypes }))
   }

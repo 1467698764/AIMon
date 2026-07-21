@@ -14,7 +14,7 @@ import {
   saveSettings,
   updateExpanded,
 } from './site-service.js'
-import { listJobs, startHealthCheck } from './health.js'
+import { listActiveJobs, startHealthCheck } from './health.js'
 
 const router = Router()
 
@@ -74,8 +74,30 @@ router.post('/drafts/:id/configure', (req, res) => {
     })).min(1),
   }).parse(req.body)
   const siteId = configureSite(Number(req.params.id), input.selections)
-  const job = input.runHealth ? startHealthCheck({ siteId }) : undefined
-  res.json({ ok: true, ...(job ? { job } : {}) })
+  let job
+  let healthStartError
+  if (input.runHealth) {
+    try {
+      job = startHealthCheck({ siteId })
+    } catch (error) {
+      healthStartError = error instanceof Error ? error.message : String(error)
+    }
+  }
+  let dashboard
+  let refreshError
+  try {
+    dashboard = getDashboard()
+  } catch (error) {
+    refreshError = error instanceof Error ? error.message : String(error)
+  }
+  res.json({
+    ok: true,
+    siteId,
+    ...(dashboard ? { dashboard } : {}),
+    ...(job ? { job } : {}),
+    ...(healthStartError ? { healthStartError } : {}),
+    ...(refreshError ? { refreshError } : {}),
+  })
 })
 router.delete('/drafts/:id', (req, res) => {
   discardDraft(Number(req.params.id))
@@ -106,6 +128,6 @@ router.post('/health/run', (req, res) => {
   }).parse(req.body || {})
   res.status(202).json(startHealthCheck(scope))
 })
-router.get('/health/jobs', (_req, res) => res.json(listJobs()))
+router.get('/health/jobs', (_req, res) => res.json(listActiveJobs()))
 
 export default router

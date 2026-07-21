@@ -51,6 +51,36 @@ interface ActiveRequest {
   timer: NodeJS.Timeout
 }
 
+class OriginSemaphore {
+  private active = 0
+  private readonly waiting: Array<() => void> = []
+
+  constructor(private readonly limit: number) {}
+
+  async run<T>(task: () => Promise<T>): Promise<T> {
+    if (this.active >= this.limit) await new Promise<void>((resolve) => this.waiting.push(resolve))
+    this.active += 1
+    try {
+      return await task()
+    } finally {
+      this.active -= 1
+      this.waiting.shift()?.()
+    }
+  }
+}
+
+const originSemaphores = new Map<string, OriginSemaphore>()
+
+function semaphoreFor(baseUrl: string): OriginSemaphore {
+  const origin = new URL(normalizeBaseUrl(baseUrl)).origin
+  let semaphore = originSemaphores.get(origin)
+  if (!semaphore) {
+    semaphore = new OriginSemaphore(3)
+    originSemaphores.set(origin, semaphore)
+  }
+  return semaphore
+}
+
 async function nodeRequest(
   targetUrl: string,
   init: RequestInit,
@@ -118,7 +148,7 @@ function responseWithBodyDeadline(active: ActiveRequest, timeoutMs: number): Res
   })
 }
 
-export async function remoteFetch(
+async function remoteFetchInternal(
   baseUrl: string,
   pathname: string,
   init: RequestInit = {},
@@ -179,6 +209,15 @@ export async function remoteFetch(
     }
     throw new RemoteError(error instanceof Error ? error.message : 'Unable to connect to the site')
   }
+}
+
+export async function remoteFetch(
+  baseUrl: string,
+  pathname: string,
+  init: RequestInit = {},
+  timeoutMs = config.requestTimeoutMs,
+): Promise<Response> {
+  return semaphoreFor(baseUrl).run(() => remoteFetchInternal(baseUrl, pathname, init, timeoutMs))
 }
 
 export async function readJson(response: Response): Promise<any> {

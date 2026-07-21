@@ -56,8 +56,8 @@ class Semaphore {
 const jobs = new Map<string, HealthJob>()
 const jobPromises = new Map<string, Promise<void>>()
 const siteSemaphores = new Map<number, Semaphore>()
-const activeModels = new Map<number, { signature: string; promise: Promise<void>; checkId: number }>()
-const activeTargetJobs = new Map<number, string>()
+const activeModels = new Map<string, { promise: Promise<void>; checkId: number }>()
+const activeTargetJobs = new Map<string, string>()
 
 function getSiteSemaphore(siteId: number): Semaphore {
   let semaphore = siteSemaphores.get(siteId)
@@ -212,11 +212,25 @@ async function jsonAttempt(
       },
       body: JSON.stringify(body),
     }, config.requestTimeoutMs)
+    const browserFallback = response.headers.get('x-aimon-browser-fallback') === '1'
     const reportedTtfb = Number(response.headers.get('x-aimon-browser-ttfb-ms'))
-    const ttfb = response.headers.get('x-aimon-browser-fallback') === '1' && Number.isFinite(reportedTtfb)
-      ? reportedTtfb
-      : performance.now() - started
-    const text = await response.text()
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    let firstByte: number | null = null
+    let text = ''
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (firstByte == null) firstByte = performance.now() - started
+        text += decoder.decode(value, { stream: true })
+      }
+      text += decoder.decode()
+    } else {
+      text = await response.text()
+      firstByte = performance.now() - started
+    }
+    const ttfb = browserFallback && Number.isFinite(reportedTtfb) ? reportedTtfb : firstByte
     const total = performance.now() - started
     let parsed: any = null
     try { parsed = JSON.parse(text) } catch { /* Report invalid JSON below. */ }
@@ -224,7 +238,7 @@ async function jsonAttempt(
     const ok = response.ok && !redirected && !parsed?.error && validate(parsed)
     return {
       ok,
-      ttfbMs: Math.round(ttfb * 10) / 10,
+      ttfbMs: ttfb == null ? null : Math.round(ttfb * 10) / 10,
       ttftMs: null,
       totalMs: Math.round(total * 10) / 10,
       httpStatus: response.status,
@@ -300,6 +314,7 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
     model,
     messages: [{ role: 'user', content: 'Reply with OK.' }],
     stream: true,
+    max_tokens: 16,
   })
   if (chat.ok) {
     const { responseBody: _, ...result } = chat
@@ -355,7 +370,7 @@ async function runTarget(target: Record<string, any>, checkId: number, onAttempt
 
 function targetSignature(target: Record<string, any>): string {
   const fingerprint = createHash('sha256').update(String(target.apiKey)).digest('hex').slice(0, 16)
-  return `${target.model_id}|${target.base_url}|${fingerprint}|${target.model_name}`
+  return `${target.model_id}|${target.config_revision}|${target.base_url}|${fingerprint}|${target.model_name}`
 }
 
 function copyCheck(fromId: number, toId: number): void {
@@ -374,25 +389,29 @@ function runModelOnce(
   onStart?: () => void,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
-  const existing = activeModels.get(target.model_id)
   const signature = targetSignature(target)
-  if (existing?.signature === signature) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
+  const existing = activeModels.get(signature)
+  if (existing) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
   const task = () => getSiteSemaphore(target.site_id).run(async () => {
     onStart?.()
     await runTarget(target, checkId, onAttempt)
   })
-  const promise = (existing ? existing.promise.catch(() => undefined).then(task) : task())
+  const promise = task()
     .catch((error) => {
       db.prepare(`UPDATE health_checks SET checked_at = ?, status = 'failed', attempts_json = ? WHERE id = ?`)
         .run(nowIso(), JSON.stringify([{ ok: false, error: error instanceof Error ? error.message : String(error) }]), checkId)
       throw error
     })
     .finally(() => {
-      if (activeModels.get(target.model_id)?.checkId === checkId) activeModels.delete(target.model_id)
+      if (activeModels.get(signature)?.checkId === checkId) activeModels.delete(signature)
     })
-  activeModels.set(target.model_id, { signature, promise, checkId })
+  activeModels.set(signature, { promise, checkId })
   return promise
+}
+
+function targetActivityKey(target: Record<string, any>): string {
+  return `${target.model_id}:${target.config_revision}`
 }
 
 function updateSiteResults(targets: Array<Record<string, any>>): void {
@@ -422,10 +441,10 @@ function updateSiteResults(targets: Array<Record<string, any>>): void {
 export function startHealthCheck(scope: HealthScope = {}): HealthJob {
   const requestedTargets: Array<Record<string, any>> = getHealthTargets(scope)
   if (!requestedTargets.length) throw new Error('当前范围内没有已选择的模型')
-  const targets = requestedTargets.filter((target) => !activeTargetJobs.has(Number(target.model_id)))
+  const targets = requestedTargets.filter((target) => !activeTargetJobs.has(targetActivityKey(target)))
   if (!targets.length) {
     const existing = requestedTargets
-      .map((target) => jobs.get(activeTargetJobs.get(Number(target.model_id)) || ''))
+      .map((target) => jobs.get(activeTargetJobs.get(targetActivityKey(target)) || ''))
       .find((job): job is HealthJob => Boolean(job && (job.status === 'queued' || job.status === 'running')))
     if (existing) return { ...existing, deduplicated: true }
   }
@@ -450,11 +469,25 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
   }
   jobs.set(job.id, job)
   const checkIds = targets.map((target) => Number(db.prepare(`
-    INSERT INTO health_checks (model_id, checked_at, attempt_count, status) VALUES (?, ?, ?, 'pending')
-  `).run(target.model_id, nowIso(), config.healthAttempts).lastInsertRowid))
-  for (const target of targets) activeTargetJobs.set(Number(target.model_id), job.id)
+    INSERT INTO health_checks (model_id, checked_at, attempt_count, config_revision, status)
+    VALUES (?, ?, ?, ?, 'pending')
+  `).run(target.model_id, nowIso(), config.healthAttempts, target.config_revision).lastInsertRowid))
+  for (const target of targets) activeTargetJobs.set(targetActivityKey(target), job.id)
 
-  const promise = (async () => {
+  const promise = new Promise<void>((resolve) => {
+    setImmediate(() => {
+      void executeHealthJob(job, targets, checkIds).finally(resolve)
+    })
+  })
+  jobPromises.set(job.id, promise)
+  return job
+}
+
+async function executeHealthJob(
+  job: HealthJob,
+  targets: Array<Record<string, any>>,
+  checkIds: number[],
+): Promise<void> {
     job.status = 'running'
     try {
       const results = await Promise.allSettled(targets.map(async (target, index) => {
@@ -472,7 +505,8 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
           throw error
         } finally {
           job.completed += 1
-          if (activeTargetJobs.get(jobTarget.modelId) === job.id) activeTargetJobs.delete(jobTarget.modelId)
+          const activityKey = targetActivityKey(target)
+          if (activeTargetJobs.get(activityKey) === job.id) activeTargetJobs.delete(activityKey)
         }
       }))
       const failedCount = results.filter((result) => result.status === 'rejected').length
@@ -483,18 +517,15 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
       job.status = 'failed'
       job.error = error instanceof Error ? error.message : String(error)
     } finally {
-      for (const target of job.targets) {
-        if (activeTargetJobs.get(target.modelId) === job.id) activeTargetJobs.delete(target.modelId)
+      for (const target of targets) {
+        const activityKey = targetActivityKey(target)
+        if (activeTargetJobs.get(activityKey) === job.id) activeTargetJobs.delete(activityKey)
       }
       updateSiteResults(targets)
       job.finishedAt = nowIso()
       pruneJobs()
       jobPromises.delete(job.id)
     }
-  })()
-  jobPromises.set(job.id, promise)
-  void promise
-  return job
 }
 
 function pruneJobs(): void {
@@ -504,6 +535,12 @@ function pruneJobs(): void {
 
 export function listJobs(): HealthJob[] {
   return [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20)
+}
+
+export function listActiveJobs(): HealthJob[] {
+  return [...jobs.values()]
+    .filter((job) => job.status === 'queued' || job.status === 'running')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 export function startAutoHealthScheduler(): NodeJS.Timeout {

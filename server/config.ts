@@ -14,6 +14,7 @@ if (isProduction && secret === 'aimon-development-only-change-me') {
 
 const basicAuthUser = process.env.AIMON_BASIC_USER || ''
 const basicAuthPassword = process.env.AIMON_BASIC_PASSWORD || ''
+const bootstrapPassword = process.env.AIMON_BOOTSTRAP_PASSWORD || ''
 const requirePersistentData = process.env.REQUIRE_PERSISTENT_DATA === 'true'
 
 export const config = {
@@ -24,6 +25,7 @@ export const config = {
   healthAttempts: Math.floor(positiveNumber(process.env.HEALTH_ATTEMPTS, 3, 1)),
   basicAuthUser,
   basicAuthPassword,
+  bootstrapPassword,
   requirePersistentData,
   cloakBrowserEnabled: process.env.CLOAKBROWSER_ENABLED !== 'false',
   cloakBrowserHeadless: process.env.CLOAKBROWSER_HEADLESS !== 'false',

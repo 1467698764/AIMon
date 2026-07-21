@@ -6,6 +6,7 @@ import {
   unwrap,
 } from '../http.js'
 import { browserLogin } from '../cloak.js'
+import { endpointTypesForModel } from './model-types.js'
 import type {
   Credentials,
   ExistingRemoteKey,
@@ -152,7 +153,13 @@ export class Sub2ApiAdapter implements SiteAdapter {
     if (!response.ok) throw new Error(extractMessage(body) || `获取模型失败（HTTP ${response.status}）`)
     const unwrapped = unwrap(body)
     const data = unwrapped?.data || unwrapped
-    const names = [...new Set<string>((Array.isArray(data) ? data : []).map((item: any) => String(item?.id || item)).filter(Boolean))].sort()
-    return names.map((name) => ({ name, endpointTypes: [] }))
+    const byName = new Map<string, string[]>()
+    for (const item of Array.isArray(data) ? data : []) {
+      const name = String(item?.id || item || '')
+      if (!name) continue
+      byName.set(name, endpointTypesForModel(name, item?.supported_endpoint_types))
+    }
+    return [...byName.entries()].sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, endpointTypes]) => ({ name, endpointTypes }))
   }
 }

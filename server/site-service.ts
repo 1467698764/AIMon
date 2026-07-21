@@ -33,6 +33,20 @@ function all(sql: string, ...params: any[]): Row[] {
   return db.prepare(sql).all(...params) as Row[]
 }
 
+async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await worker(items[index], index)
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
+
 function defaultCredentials(): Credentials {
   const row = one('SELECT username_enc, password_enc FROM settings WHERE id = 1')
   return { username: decrypt(row?.username_enc), password: decrypt(row?.password_enc) }
@@ -181,8 +195,7 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
   `, draftId, ...groupIds)
   if (groups.length !== groupIds.length) throw new Error('选择中包含已失效的分组，请重新获取站点信息')
 
-  const prepared = []
-  for (const group of groups) {
+  const prepared = await mapLimit(groups, 3, async (group) => {
     const source = group.source_group_id
       ? one('SELECT * FROM site_groups WHERE id = ? AND site_id = ?', group.source_group_id, draft.site_id)
       : undefined
@@ -223,15 +236,15 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
       }
     })
 
-    prepared.push({
+    return {
       id: group.id,
       name: group.name,
       ratio: group.ratio,
       standardRatio: group.ratio_dynamic ? null : Number(group.ratio) / Number(draft.recharge_ratio || 1),
       models: all('SELECT id, name, selected FROM draft_models WHERE draft_group_id = ? ORDER BY sort_order, id', group.id)
         .map((model) => ({ ...model, selected: Boolean(model.selected) })),
-    })
-  }
+    }
+  })
   return { draftId, groups: prepared }
 }
 
@@ -245,22 +258,21 @@ export async function prepareManualSite(input: DiscoverInput & { draftId?: numbe
   const sameOrigin = Boolean(existing && normalizeBaseUrl(existing.base_url) === baseUrl)
   const sourceGroups = sameOrigin ? all('SELECT * FROM site_groups WHERE site_id = ?', existing!.id) : []
   const adapter = getAdapter('newapi')
-  const loaded: Array<{
+  const loaded = await mapLimit(input.groups, 3, async (group, index): Promise<{
     input: ManualGroupInput
     source?: Row
     apiKey: string
     models: RemoteModel[]
     index: number
-  }> = []
-  for (const [index, group] of input.groups.entries()) {
+  }> => {
     const source = group.id ? sourceGroups.find((item) => item.id === group.id) : undefined
     if (group.id && !source) throw new Error(`分组「${group.name}」无法沿用：Base URL 已变化或分组不属于此站点`)
     const apiKey = group.apiKey?.trim() || decrypt(source?.api_key_enc)
     if (!apiKey) throw new Error(`请填写分组「${group.name}」的 API Key`)
     const models = await adapter.listModels(baseUrl, apiKey)
     if (!models.length) throw new Error(`分组「${group.name}」没有返回任何可用模型`)
-    loaded.push({ input: group, source, apiKey, models, index })
-  }
+    return { input: group, source, apiKey, models, index }
+  })
 
   const rechargeRatio = Math.max(0.000001, Number(input.rechargeRatio || existing?.recharge_ratio || 1))
   const draftId = transaction(() => {
@@ -326,7 +338,8 @@ export function configureSite(draftId: number, selections: Array<{ groupId: numb
       }
       db.prepare(`
         UPDATE sites SET name = ?, base_url = ?, type = ?, username_enc = ?, password_enc = ?, balance = ?,
-          currency = ?, recharge_ratio = ?, connection_mode = ?, configured = 1, last_sync_at = ?, last_error = NULL, updated_at = ?
+          currency = ?, recharge_ratio = ?, connection_mode = ?, config_revision = config_revision + 1,
+          configured = 1, last_sync_at = ?, last_error = NULL, updated_at = ?
         WHERE id = ?
       `).run(draft.name, draft.base_url, draft.type, draft.username_enc, draft.password_enc, draft.balance,
         draft.currency, draft.recharge_ratio, draft.connection_mode || 'auto', nowIso(), nowIso(), siteId)
@@ -468,11 +481,13 @@ export function getDashboard() {
           COALESCE(h.status, 'pending') AS status, h.attempts_json AS attemptsJson
         FROM models m
         LEFT JOIN health_checks h ON h.id = (
-          SELECT id FROM health_checks WHERE model_id = m.id ORDER BY checked_at DESC, id DESC LIMIT 1
+          SELECT id FROM health_checks
+          WHERE model_id = m.id AND status <> 'pending' AND config_revision = ?
+          ORDER BY checked_at DESC, id DESC LIMIT 1
         )
         WHERE m.group_id = ? AND m.selected = 1
         ORDER BY m.sort_order, m.id
-      `, group.id).map((model) => {
+      `, site.config_revision, group.id).map((model) => {
         const { attemptsJson, ...visible } = model
         return { ...visible, attempts: attemptsJson ? JSON.parse(attemptsJson) : [] }
       })
@@ -527,7 +542,7 @@ export function getHealthTargets(scope: { siteId?: number; groupId?: number; mod
   if (scope.modelId) { clauses.push('m.id = ?'); params.push(scope.modelId) }
   return all(`
     SELECT m.id AS model_id, m.name AS model_name, m.endpoint_types_json, g.id AS group_id, g.name AS group_name,
-      g.api_key_enc, s.id AS site_id, s.name AS site_name, s.base_url
+      g.api_key_enc, s.id AS site_id, s.name AS site_name, s.base_url, s.config_revision
     FROM models m
     JOIN site_groups g ON g.id = m.group_id
     JOIN sites s ON s.id = g.site_id

@@ -30,6 +30,18 @@ function hashPassword(password: string): string {
   return `scrypt$16384$${salt.toString('base64url')}$${hash.toString('base64url')}`
 }
 
+function applyBootstrapPassword(): void {
+  if (!config.bootstrapPassword) return
+  validatePassword(config.bootstrapPassword)
+  const row = passwordRow()
+  if (row.admin_password_hash) return
+  const version = Number(row.admin_password_version || 0) + 1
+  db.prepare('UPDATE settings SET admin_password_hash = ?, admin_password_version = ?, updated_at = ? WHERE id = 1')
+    .run(hashPassword(config.bootstrapPassword), version, nowIso())
+}
+
+applyBootstrapPassword()
+
 function verifyPassword(password: string, encoded: string): boolean {
   const [kind, cost, saltValue, hashValue] = encoded.split('$')
   if (kind !== 'scrypt' || cost !== '16384' || !saltValue || !hashValue) return false

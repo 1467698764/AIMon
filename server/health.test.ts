@@ -58,6 +58,7 @@ function target(modelId: number, name: string) {
     site_id: siteId,
     site_name: 'Runtime Test',
     base_url: 'https://health.test',
+    config_revision: 1,
     apiKey: 'sk-test',
   }
 }

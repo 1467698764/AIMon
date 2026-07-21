@@ -39,7 +39,14 @@ export const api = {
       method: 'POST', body: JSON.stringify({ groupIds }),
     }),
   configure: (draftId: number, selections: Array<{ groupId: number; modelIds: number[] }>, runHealth = true) =>
-    request<{ ok: true; job?: HealthJob }>(`/api/drafts/${draftId}/configure`, {
+    request<{
+      ok: true
+      siteId: number
+      dashboard?: Dashboard
+      job?: HealthJob
+      healthStartError?: string
+      refreshError?: string
+    }>(`/api/drafts/${draftId}/configure`, {
       method: 'POST', body: JSON.stringify({ selections, runHealth }),
     }),
   deleteSite: (id: number) => request<void>(`/api/sites/${id}`, { method: 'DELETE' }),

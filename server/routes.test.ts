@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   configureSite: vi.fn(() => 77),
+  getDashboard: vi.fn(() => ({ sites: [{ id: 77 }] })),
   startHealthCheck: vi.fn(() => ({ id: 'job-1', status: 'queued' })),
 }))
 
@@ -12,7 +13,7 @@ vi.mock('./site-service.js', () => ({
   deleteSite: vi.fn(),
   discardDraft: vi.fn(),
   discoverSite: vi.fn(),
-  getDashboard: vi.fn(),
+  getDashboard: mocks.getDashboard,
   getSettings: vi.fn(),
   getSiteEditor: vi.fn(),
   prepareManualSite: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock('./site-service.js', () => ({
   updateExpanded: vi.fn(),
 }))
 vi.mock('./health.js', () => ({
-  listJobs: vi.fn(() => []),
+  listActiveJobs: vi.fn(() => []),
   startHealthCheck: mocks.startHealthCheck,
 }))
 
@@ -45,7 +46,7 @@ describe('site configuration route', () => {
 
     expect(mocks.configureSite).toHaveBeenCalledWith(12, selections)
     expect(mocks.startHealthCheck).not.toHaveBeenCalled()
-    expect(response.body).toEqual({ ok: true })
+    expect(response.body).toEqual({ ok: true, siteId: 77, dashboard: { sites: [{ id: 77 }] } })
   })
 
   it('keeps the previous save-and-check behavior when runHealth is omitted', async () => {
@@ -55,6 +56,27 @@ describe('site configuration route', () => {
       .expect(200)
 
     expect(mocks.startHealthCheck).toHaveBeenCalledWith({ siteId: 77 })
-    expect(response.body).toMatchObject({ ok: true, job: { id: 'job-1' } })
+    expect(response.body).toMatchObject({
+      ok: true,
+      siteId: 77,
+      dashboard: { sites: [{ id: 77 }] },
+      job: { id: 'job-1' },
+    })
+  })
+
+  it('reports a health-start warning without turning a successful save into HTTP 500', async () => {
+    mocks.startHealthCheck.mockImplementationOnce(() => { throw new Error('no targets') })
+
+    const response = await request(app)
+      .post('/api/drafts/12/configure')
+      .send({ selections })
+      .expect(200)
+
+    expect(response.body).toMatchObject({
+      ok: true,
+      siteId: 77,
+      dashboard: { sites: [{ id: 77 }] },
+      healthStartError: 'no targets',
+    })
   })
 })
