@@ -122,6 +122,9 @@ async function streamingAttempt(
       },
       body: JSON.stringify(body),
     }, config.requestTimeoutMs)
+    const browserFallback = response.headers.get('x-aimon-browser-fallback') === '1'
+    const browserTtfb = Number(response.headers.get('x-aimon-browser-ttfb-ms'))
+    const browserTtft = Number(response.headers.get('x-aimon-browser-ttft-ms'))
     const reader = response.body?.getReader()
     const decoder = new TextDecoder()
     let firstByte: number | null = null
@@ -153,8 +156,12 @@ async function streamingAttempt(
     }
 
     const total = performance.now() - started
+    if (browserFallback) {
+      firstByte = Number.isFinite(browserTtfb) ? browserTtfb : null
+      firstToken = Number.isFinite(browserTtft) && browserTtft > 0 ? browserTtft : null
+    }
     const inspected = inspectProtocolBody(responseBody)
-    if (firstToken == null && inspected.hasText) firstToken = total
+    if (!browserFallback && firstToken == null && inspected.hasText) firstToken = total
     const redirected = response.status >= 300 && response.status < 400
     const contentType = response.headers.get('content-type') || ''
     const looksHtml = /text\/html/i.test(contentType) || /^\s*(?:<!doctype|<html)/i.test(responseBody)
@@ -214,7 +221,10 @@ async function jsonAttempt(
       },
       body: JSON.stringify(body),
     }, config.requestTimeoutMs)
-    const ttfb = performance.now() - started
+    const reportedTtfb = Number(response.headers.get('x-aimon-browser-ttfb-ms'))
+    const ttfb = response.headers.get('x-aimon-browser-fallback') === '1' && Number.isFinite(reportedTtfb)
+      ? reportedTtfb
+      : performance.now() - started
     const text = await response.text()
     const total = performance.now() - started
     let parsed: any = null

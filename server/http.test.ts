@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { authHeaders, normalizeBaseUrl, remoteFetch, unwrap } from './http.js'
+import { isCloudflareChallenge } from './cloak.js'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -29,5 +30,33 @@ describe('HTTP helpers', () => {
   it('rejects remote redirects instead of forwarding credentials', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 302, headers: { Location: 'https://other.example' } })))
     await expect(remoteFetch('https://example.com', '/api/user/login')).rejects.toThrow('重定向')
+  })
+
+  it('detects Cloudflare challenges returned with HTTP 200', async () => {
+    const response = new Response('<title>Just a moment...</title><script src="/cdn-cgi/challenge-platform/x.js"></script>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    })
+    await expect(isCloudflareChallenge(response)).resolves.toBe(true)
+  })
+
+  it('does not mistake ordinary JSON errors behind Cloudflare for a challenge', async () => {
+    const response = new Response(JSON.stringify({ error: 'forbidden' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', Server: 'cloudflare' },
+    })
+    await expect(isCloudflareChallenge(response)).resolves.toBe(false)
+  })
+
+  it('keeps the timeout active while the response body is being read', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => new Response(new ReadableStream({
+      start(controller) {
+        init?.signal?.addEventListener('abort', () => {
+          controller.error(new DOMException('aborted', 'AbortError'))
+        }, { once: true })
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    const response = await remoteFetch('https://example.com', '/slow', {}, 20)
+    await expect(response.text()).rejects.toThrow('timed out')
   })
 })

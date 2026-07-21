@@ -5,6 +5,7 @@ import {
   remoteFetch,
   unwrap,
 } from '../http.js'
+import { browserLogin } from '../cloak.js'
 import type {
   Credentials,
   ExistingRemoteKey,
@@ -51,6 +52,9 @@ export class Sub2ApiAdapter implements SiteAdapter {
     })
     const raw = await response.json().catch(() => null) as any
     if (!response.ok || (typeof raw?.code === 'number' && raw.code !== 0)) {
+      if (/turnstile|captcha|verification|人机|验证码|验证/i.test(`${extractMessage(raw)} ${raw?.reason || raw?.data?.reason || ''}`)) {
+        return browserLogin('sub2api', baseUrl, credentials)
+      }
       throw new Error(extractMessage(raw) || `Sub2API 登录失败（HTTP ${response.status}）`)
     }
     const data = unwrap(raw)

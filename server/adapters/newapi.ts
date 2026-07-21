@@ -6,6 +6,7 @@ import {
   responseCookie,
   unwrap,
 } from '../http.js'
+import { browserLogin } from '../cloak.js'
 import type {
   Credentials,
   ExistingRemoteKey,
@@ -60,6 +61,9 @@ export class NewApiAdapter implements SiteAdapter {
     const raw = await response.json().catch(() => null) as any
     if (!response.ok || raw?.success === false) {
       const message = extractMessage(raw)
+      if (/turnstile|captcha|人机|验证码|验证/i.test(`${message} ${raw?.reason || ''}`)) {
+        return browserLogin('newapi', baseUrl, credentials)
+      }
       if (/turnstile|captcha|人机|验证码/i.test(message)) {
         throw new Error('该 New API 站点启用了人机验证，无法自动登录；请为监控账号关闭登录验证码或使用站点提供的可信访问方式')
       }

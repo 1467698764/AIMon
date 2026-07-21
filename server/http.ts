@@ -1,5 +1,11 @@
 import { config } from './config.js'
-import { cachedBrowserSession, isCloudflareChallenge, refreshBrowserSession, type BrowserSession } from './cloak.js'
+import {
+  browserFetch,
+  cachedBrowserSession,
+  isCloudflareChallenge,
+  refreshBrowserSession,
+  type BrowserSession,
+} from './cloak.js'
 import type { RemoteAuth } from './types.js'
 
 export class RemoteError extends Error {
@@ -14,13 +20,13 @@ export class RemoteError extends Error {
 
 export function normalizeBaseUrl(raw: string): string {
   const value = raw.trim()
-  if (!value) throw new Error('Base URL 不能为空')
+  if (!value) throw new Error('Base URL cannot be empty')
   if (/^[a-z][a-z\d+.-]*:\/\//i.test(value) && !/^https?:\/\//i.test(value)) {
-    throw new Error('Base URL 仅支持 HTTP 或 HTTPS')
+    throw new Error('Base URL only supports HTTP or HTTPS')
   }
   const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`
   const parsed = new URL(withProtocol)
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Base URL 仅支持 HTTP 或 HTTPS')
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Base URL only supports HTTP or HTTPS')
   parsed.hash = ''
   parsed.search = ''
   parsed.pathname = parsed.pathname.replace(/\/(api\/)?v1\/?$/i, '').replace(/\/+$/, '')
@@ -39,49 +45,139 @@ export function authHeaders(auth?: RemoteAuth): Record<string, string> {
   return headers
 }
 
+interface ActiveRequest {
+  response: Response
+  controller: AbortController
+  timer: NodeJS.Timeout
+}
+
+async function nodeRequest(
+  targetUrl: string,
+  init: RequestInit,
+  timeoutMs: number,
+  session?: BrowserSession,
+): Promise<ActiveRequest> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const signal = init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal
+  const headers = new Headers(init.headers)
+  headers.set('User-Agent', session?.userAgent || 'AIMon/1.0')
+  if (session?.cookie) {
+    const existing = headers.get('Cookie')
+    headers.set('Cookie', existing ? `${existing}; ${session.cookie}` : session.cookie)
+  }
+  try {
+    const response = await fetch(targetUrl, { ...init, redirect: 'manual', signal, headers })
+    return { response, controller, timer }
+  } catch (error) {
+    clearTimeout(timer)
+    throw error
+  }
+}
+
+async function discard(active: ActiveRequest | undefined): Promise<void> {
+  if (!active) return
+  clearTimeout(active.timer)
+  active.controller.abort()
+  await active.response.body?.cancel().catch(() => undefined)
+}
+
+function responseWithBodyDeadline(active: ActiveRequest, timeoutMs: number): Response {
+  if (!active.response.body) {
+    clearTimeout(active.timer)
+    return active.response
+  }
+  const reader = active.response.body.getReader()
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const result = await reader.read()
+        if (result.done) {
+          clearTimeout(active.timer)
+          controller.close()
+        } else {
+          controller.enqueue(result.value)
+        }
+      } catch (error) {
+        clearTimeout(active.timer)
+        controller.error(error instanceof Error && error.name === 'AbortError'
+          ? new RemoteError(`Request timed out (${timeoutMs}ms)`)
+          : error)
+      }
+    },
+    async cancel(reason) {
+      clearTimeout(active.timer)
+      active.controller.abort()
+      await reader.cancel(reason).catch(() => undefined)
+    },
+  })
+  return new Response(body, {
+    status: active.response.status,
+    statusText: active.response.statusText,
+    headers: active.response.headers,
+  })
+}
+
 export async function remoteFetch(
   baseUrl: string,
   pathname: string,
   init: RequestInit = {},
   timeoutMs = config.requestTimeoutMs,
 ): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  const signal = init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal
-  const run = (session?: BrowserSession) => {
-    const headers = new Headers(init.headers)
-    headers.set('User-Agent', session?.userAgent || 'AIMon/1.0')
-    if (session?.cookie) {
-      const existing = headers.get('Cookie')
-      headers.set('Cookie', existing ? `${existing}; ${session.cookie}` : session.cookie)
-    }
-    return fetch(endpoint(baseUrl, pathname), {
-      ...init,
-      redirect: 'manual',
-      signal,
-      headers,
-    })
-  }
+  const targetUrl = endpoint(baseUrl, pathname)
+  let active: ActiveRequest | undefined
   try {
-    let response = await run(cachedBrowserSession(baseUrl))
-    if (await isCloudflareChallenge(response)) {
-      const session = await refreshBrowserSession(baseUrl)
-      response = await run(session)
-      if (await isCloudflareChallenge(response)) {
-        throw new RemoteError('CloakBrowser 已取得浏览器会话，但站点仍返回 Cloudflare 验证；可改用手动 API Key 接入', response.status)
+    if (config.cloakBrowserProxy) {
+      const browserResponse = await browserFetch(baseUrl, targetUrl, init, timeoutMs)
+      if (await isCloudflareChallenge(browserResponse)) {
+        throw new RemoteError('The proxied CloakBrowser request still returned Cloudflare verification; use manual API Key mode if interaction is required', browserResponse.status)
+      }
+      if (browserResponse.status >= 300 && browserResponse.status < 400) {
+        throw new RemoteError('远端请求发生重定向，已拒绝跟随以避免泄露登录凭据', browserResponse.status)
+      }
+      return browserResponse
+    }
+    const initialSession = cachedBrowserSession(baseUrl)
+    active = await nodeRequest(targetUrl, init, timeoutMs, initialSession)
+    if (await isCloudflareChallenge(active.response)) {
+      await discard(active)
+      active = undefined
+      if (init.signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError')
+      const newerSession = cachedBrowserSession(baseUrl)
+      const session = newerSession && newerSession !== initialSession
+        ? newerSession
+        : await refreshBrowserSession(baseUrl, targetUrl, init.signal)
+      if (init.signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError')
+      active = await nodeRequest(targetUrl, init, timeoutMs, session)
+      if (await isCloudflareChallenge(active.response)) {
+        await discard(active)
+        active = undefined
+        const browserResponse = await browserFetch(baseUrl, targetUrl, init, timeoutMs)
+        if (await isCloudflareChallenge(browserResponse)) {
+          throw new RemoteError('CloakBrowser completed the browser request, but the site still returned Cloudflare verification; use manual API Key mode if interaction is required', browserResponse.status)
+        }
+        if (browserResponse.status >= 300 && browserResponse.status < 400) {
+          throw new RemoteError('远端请求发生重定向，已拒绝跟随以避免泄露登录凭据', browserResponse.status)
+        }
+        return browserResponse
       }
     }
-    if (response.status >= 300 && response.status < 400) {
-      throw new RemoteError('远端请求发生重定向，已拒绝跟随以避免泄露登录凭据', response.status)
+    if (active.response.status >= 300 && active.response.status < 400) {
+      const status = active.response.status
+      await discard(active)
+      active = undefined
+      throw new RemoteError('远端请求发生重定向，已拒绝跟随以避免泄露登录凭据', status)
     }
+    const response = responseWithBodyDeadline(active, timeoutMs)
+    active = undefined
     return response
   } catch (error) {
+    await discard(active)
+    if (error instanceof RemoteError) throw error
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new RemoteError(`请求超时（${timeoutMs}ms）`)
+      throw new RemoteError(`Request timed out (${timeoutMs}ms)`)
     }
-    throw new RemoteError(error instanceof Error ? error.message : '无法连接站点')
-  } finally {
-    clearTimeout(timer)
+    throw new RemoteError(error instanceof Error ? error.message : 'Unable to connect to the site')
   }
 }
 
@@ -91,21 +187,21 @@ export async function readJson(response: Response): Promise<any> {
   try {
     body = text ? JSON.parse(text) : null
   } catch {
-    throw new RemoteError(`远端返回了非 JSON 内容（HTTP ${response.status}）`, response.status)
+    throw new RemoteError(`The remote returned non-JSON content (HTTP ${response.status})`, response.status)
   }
   if (!response.ok) {
-    throw new RemoteError(extractMessage(body) || `远端请求失败（HTTP ${response.status}）`, response.status, body)
+    throw new RemoteError(extractMessage(body) || `Remote request failed (HTTP ${response.status})`, response.status, body)
   }
   return unwrap(body)
 }
 
 export function unwrap(body: any): any {
   if (body && typeof body === 'object' && typeof body.code === 'number') {
-    if (body.code !== 0) throw new RemoteError(extractMessage(body) || `远端错误码 ${body.code}`, undefined, body)
+    if (body.code !== 0) throw new RemoteError(extractMessage(body) || `Remote error code ${body.code}`, undefined, body)
     return body.data
   }
   if (body && typeof body === 'object' && body.success === false) {
-    throw new RemoteError(extractMessage(body) || '远端操作失败', undefined, body)
+    throw new RemoteError(extractMessage(body) || 'Remote operation failed', undefined, body)
   }
   if (body && typeof body === 'object' && body.success === true && 'data' in body) return body.data
   return body

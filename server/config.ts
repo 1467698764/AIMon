@@ -1,5 +1,10 @@
 import path from 'node:path'
 
+function positiveNumber(value: string | undefined, fallback: number, minimum: number): number {
+  const parsed = Number(value ?? fallback)
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback
+}
+
 const isProduction = process.env.NODE_ENV === 'production'
 const secret = process.env.AIMON_SECRET || 'aimon-development-only-change-me'
 
@@ -18,13 +23,16 @@ export const config = {
   port: Number(process.env.PORT || 8787),
   dataDir: path.resolve(process.env.DATA_DIR || './data'),
   secret,
-  requestTimeoutMs: Number(process.env.REQUEST_TIMEOUT_MS || 30_000),
-  healthAttempts: Math.max(1, Number(process.env.HEALTH_ATTEMPTS || 3)),
+  requestTimeoutMs: positiveNumber(process.env.REQUEST_TIMEOUT_MS, 30_000, 1_000),
+  healthAttempts: Math.floor(positiveNumber(process.env.HEALTH_ATTEMPTS, 3, 1)),
   basicAuthUser,
   basicAuthPassword,
   allowUnauthenticated,
   cloakBrowserEnabled: process.env.CLOAKBROWSER_ENABLED !== 'false',
   cloakBrowserHeadless: process.env.CLOAKBROWSER_HEADLESS !== 'false',
-  cloakBrowserTimeoutMs: Math.max(10_000, Number(process.env.CLOAKBROWSER_TIMEOUT_MS || 60_000)),
+  cloakBrowserTimeoutMs: positiveNumber(process.env.CLOAKBROWSER_TIMEOUT_MS, 60_000, 10_000),
+  cloakBrowserIdleMs: positiveNumber(process.env.CLOAKBROWSER_IDLE_MS, 5 * 60_000, 60_000),
+  cloakBrowserMaxContexts: Math.floor(positiveNumber(process.env.CLOAKBROWSER_MAX_CONTEXTS, 4, 1)),
+  cloakBrowserProxy: process.env.CLOAKBROWSER_PROXY || '',
   isProduction,
 }
