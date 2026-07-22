@@ -9,14 +9,17 @@ services:
       - "8787:8787"
     environment:
       AIMON_SECRET: ${AIMON_SECRET:?请在 .env 中设置 AIMON_SECRET}
+      AIMON_BOOTSTRAP_PASSWORD: ${AIMON_BOOTSTRAP_PASSWORD:-}
       AIMON_BASIC_USER: ${AIMON_BASIC_USER:-}
       AIMON_BASIC_PASSWORD: ${AIMON_BASIC_PASSWORD:-}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
       CLOAKBROWSER_ENABLED: ${CLOAKBROWSER_ENABLED:-true}
       CLOAKBROWSER_HEADLESS: ${CLOAKBROWSER_HEADLESS:-true}
       CLOAKBROWSER_TIMEOUT_MS: ${CLOAKBROWSER_TIMEOUT_MS:-60000}
       CLOAKBROWSER_IDLE_MS: ${CLOAKBROWSER_IDLE_MS:-180000}
       CLOAKBROWSER_MAX_CONTEXTS: ${CLOAKBROWSER_MAX_CONTEXTS:-2}
       CLOAKBROWSER_PROXY: ${CLOAKBROWSER_PROXY:-}
+      CLOAKBROWSER_BINARY_PATH: ${CLOAKBROWSER_BINARY_PATH:-}
       CLOAKBROWSER_AUTO_UPDATE: "false"
       CLOAKBROWSER_LICENSE_KEY: ${CLOAKBROWSER_LICENSE_KEY:-}
       DATA_DIR: /app/data
@@ -26,7 +29,7 @@ services:
       - ./data:/app/data
       - cloakbrowser-cache:/root/.cloakbrowser
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8787/api/dashboard').then(() => process.exit(0)).catch(() => process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8787/api/auth/status').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3
