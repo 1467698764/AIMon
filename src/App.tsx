@@ -1233,7 +1233,8 @@ export function App() {
     const entries = Array.from(siteWorkspaceRef.current?.querySelectorAll<HTMLElement>('[data-site-id]') || [])
     if (!entries.length) return null
     const marker = window.matchMedia('(max-width: 900px)').matches ? 72 : 140
-    if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+    const pageActuallyScrolls = document.documentElement.scrollHeight > window.innerHeight + marker
+    if (pageActuallyScrolls && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
       const visibleAtBottom = entries.filter((entry) => {
         const rect = entry.getBoundingClientRect()
         return rect.top < window.innerHeight && rect.bottom > marker
@@ -1334,7 +1335,7 @@ export function App() {
     <main className="workspace">
       <section className="command-bar">
         <div><h1>渠道监控</h1><p>站点、分组与模型的实时可用性</p></div>
-        <div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" disabled={isHealthActive({})} onClick={() => void health()}><RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>
+        <div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} aria-pressed={recommended} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" disabled={isHealthActive({})} onClick={() => void health()}><RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>
       </section>
       <section className="control-deck">
         <section className="summary-strip" aria-label="监控概览">
@@ -1351,7 +1352,7 @@ export function App() {
             {([
               ['all', '全部'], ['failed', '失败'], ['available', '可用'], ['excellent', '优质'], ['pending', '待测'],
             ] as Array<[StatusFilter, string]>).map(([value, label]) =>
-              <button type="button" key={value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>)}
+              <button type="button" key={value} aria-pressed={statusFilter === value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>)}
           </div>
           {filtering && <span className="filter-result">显示 {visibleSites.length} / {dashboard.sites.length} 个站点</span>}
         </section>
