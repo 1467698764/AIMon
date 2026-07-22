@@ -33,6 +33,8 @@ function all(sql: string, ...params: any[]): Row[] {
   return db.prepare(sql).all(...params) as Row[]
 }
 
+const metadataRefreshQueues = new Map<number, Promise<string | null>>()
+
 async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length)
   let nextIndex = 0
@@ -452,21 +454,110 @@ export function getSettings() {
     username: decrypt(row.username_enc),
     hasPassword: Boolean(row.password_enc),
     autoCheckMinutes: Number(row.auto_check_minutes || 0),
+    healthAttempts: Math.max(1, Math.min(10, Math.floor(Number(row.health_attempts || 3)))),
   }
 }
 
-export function saveSettings(input: { username?: string; password?: string; autoCheckMinutes?: number }) {
+export function saveSettings(input: { username?: string; password?: string; autoCheckMinutes?: number; healthAttempts?: number }) {
   const current = one('SELECT * FROM settings WHERE id = 1')!
   const minutes = Math.max(0, Math.floor(Number(input.autoCheckMinutes ?? current.auto_check_minutes ?? 0)))
+  const attempts = Math.max(1, Math.min(10, Math.floor(Number(input.healthAttempts ?? current.health_attempts ?? 3))))
   db.prepare(`
-    UPDATE settings SET username_enc = ?, password_enc = ?, auto_check_minutes = ?, updated_at = ? WHERE id = 1
+    UPDATE settings SET username_enc = ?, password_enc = ?, auto_check_minutes = ?, health_attempts = ?, updated_at = ? WHERE id = 1
   `).run(
     input.username !== undefined ? encrypt(input.username.trim()) : current.username_enc,
     input.password !== undefined ? encrypt(input.password) : current.password_enc,
     minutes,
+    attempts,
     nowIso(),
   )
   return getSettings()
+}
+
+async function refreshSiteMetadata(site: Row, groupId: number | undefined, includeBalance: boolean): Promise<string | null> {
+  if ((site.connection_mode || 'auto') !== 'auto') return null
+  const previous = metadataRefreshQueues.get(Number(site.id)) || Promise.resolve(null)
+  const refresh = previous.catch(() => null).then(async () => {
+    try {
+      const adapter = getAdapter(site.type)
+      const auth = await adapter.login(site.base_url, effectiveCredentials(site))
+      const snapshot = await adapter.snapshot(site.base_url, auth)
+      const storedGroups = all('SELECT * FROM site_groups WHERE site_id = ? ORDER BY sort_order, id', site.id)
+      const sources = reconcileSourceGroups(
+        storedGroups as Array<Row & StoredGroupIdentity>,
+        snapshot.groups,
+        site.type === 'newapi',
+      )
+      let matchedRequestedGroup = groupId == null
+      const applied = transaction(() => {
+        const current = one('SELECT * FROM sites WHERE id = ?', site.id)
+        if (!current) return false
+        if (
+          Number(current.config_revision) !== Number(site.config_revision)
+          || current.base_url !== site.base_url
+          || current.type !== site.type
+          || (current.connection_mode || 'auto') !== 'auto'
+        ) return false
+        let changed = false
+        for (const [index, remote] of snapshot.groups.entries()) {
+          const source = sources[index]
+          if (!source || (groupId != null && Number(source.id) !== groupId)) continue
+          const ratio = Number(remote.ratio)
+          if (!Number.isFinite(ratio) || ratio <= 0) continue
+          matchedRequestedGroup = true
+          db.prepare(`
+            UPDATE site_groups SET ratio = ?, ratio_dynamic = ?, platform = ?, updated_at = ?
+            WHERE id = ? AND site_id = ?
+          `).run(ratio, Number(remote.ratioDynamic || false), remote.platform || source.platform, nowIso(), source.id, site.id)
+          changed = true
+        }
+        const balance = Number(snapshot.balance)
+        if (includeBalance && Number.isFinite(balance)) {
+          db.prepare(`
+            UPDATE sites SET balance = ?, currency = ?, updated_at = ? WHERE id = ?
+          `).run(balance, snapshot.currency, nowIso(), site.id)
+          changed = true
+        }
+        if (changed) {
+          db.prepare('UPDATE sites SET last_sync_at = ?, updated_at = ? WHERE id = ?')
+            .run(nowIso(), nowIso(), site.id)
+        }
+        return true
+      })
+      if (!applied) return `站点「${site.name}」配置已变化，已放弃本次旧数据同步`
+      if (!matchedRequestedGroup) return `站点「${site.name}」未能匹配当前分组，已使用原倍率继续测活`
+      return null
+    } catch (error) {
+      return `站点「${site.name}」同步失败，已使用原数据继续测活：${error instanceof Error ? error.message : String(error)}`
+    }
+  })
+  metadataRefreshQueues.set(Number(site.id), refresh)
+  try {
+    return await refresh
+  } finally {
+    if (metadataRefreshQueues.get(Number(site.id)) === refresh) metadataRefreshQueues.delete(Number(site.id))
+  }
+}
+
+export async function refreshHealthMetadata(scope: { siteId?: number; groupId?: number; modelId?: number }): Promise<string[]> {
+  if (scope.modelId) return []
+  let sites: Row[]
+  let requestedGroupId: number | undefined
+  if (scope.groupId) {
+    requestedGroupId = scope.groupId
+    sites = all(`
+      SELECT DISTINCT s.* FROM sites s
+      JOIN site_groups g ON g.site_id = s.id
+      WHERE s.configured = 1 AND g.id = ?
+    `, scope.groupId)
+  } else if (scope.siteId) {
+    sites = all('SELECT * FROM sites WHERE configured = 1 AND id = ?', scope.siteId)
+  } else {
+    sites = all('SELECT * FROM sites WHERE configured = 1 ORDER BY sort_order, id')
+  }
+  const includeBalance = !scope.groupId
+  const warnings = await mapLimit(sites, 3, (site) => refreshSiteMetadata(site, requestedGroupId, includeBalance))
+  return warnings.filter((warning): warning is string => Boolean(warning))
 }
 
 export function getDashboard() {

@@ -28,6 +28,7 @@ router.put('/settings', (req, res) => {
     username: z.string().optional(),
     password: z.string().optional(),
     autoCheckMinutes: z.number().int().min(0).max(525_600).optional(),
+    healthAttempts: z.number().int().min(1).max(10).optional(),
   }).parse(req.body)
   res.json(saveSettings(input))
 })
@@ -125,6 +126,8 @@ router.post('/health/run', (req, res) => {
     siteId: z.number().int().positive().optional(),
     groupId: z.number().int().positive().optional(),
     modelId: z.number().int().positive().optional(),
+  }).refine((value) => [value.siteId, value.groupId, value.modelId].filter(Boolean).length <= 1, {
+    message: '一次只能选择站点、分组或模型中的一个测活范围',
   }).parse(req.body || {})
   res.status(202).json(startHealthCheck(scope))
 })

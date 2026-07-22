@@ -16,6 +16,7 @@ db.exec(`
     admin_password_hash TEXT,
     admin_password_version INTEGER NOT NULL DEFAULT 0,
     auto_check_minutes INTEGER NOT NULL DEFAULT 0,
+    health_attempts INTEGER NOT NULL DEFAULT 3,
     last_auto_check_at TEXT,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -143,6 +144,7 @@ db.prepare(`
 
 for (const statement of [
   'ALTER TABLE settings ADD COLUMN auto_check_minutes INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE settings ADD COLUMN health_attempts INTEGER NOT NULL DEFAULT 3',
   'ALTER TABLE settings ADD COLUMN last_auto_check_at TEXT',
   'ALTER TABLE settings ADD COLUMN admin_password_hash TEXT',
   'ALTER TABLE settings ADD COLUMN admin_password_version INTEGER NOT NULL DEFAULT 0',

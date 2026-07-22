@@ -60,6 +60,7 @@ export interface Settings {
   username: string
   hasPassword: boolean
   autoCheckMinutes: number
+  healthAttempts: number
 }
 
 export interface Dashboard {
@@ -108,6 +109,7 @@ export interface PreparedGroup {
 export interface HealthJob {
   id: string
   status: 'queued' | 'running' | 'completed' | 'failed'
+  phase: 'refreshing' | 'checking'
   total: number
   completed: number
   current: string
@@ -115,6 +117,7 @@ export interface HealthJob {
   createdAt: string
   finishedAt?: string
   error?: string
+  refreshWarning?: string
   deduplicated?: boolean
 }
 

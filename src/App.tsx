@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
   CircleAlert, GripVertical, Layers3, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, Pencil, Plus,
@@ -93,14 +93,29 @@ function SuccessValue({ model, activeTarget }: { model: ModelItem; activeTarget?
     : activeTarget?.status === 'queued'
       ? '排队'
       : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
-  return <span className={`metric-value metric-${tone}`} title={`三次测活成功率：${value}`}>{value}</span>
+  return <span className={`metric-value metric-${tone}`} title={`测活成功率：${value}`}>{value}</span>
 }
 
 function fmtTime(value: string | null): string {
   if (!value) return '尚未测活'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return '时间未知'
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).format(new Date(value))
+  }).format(date)
+}
+
+function fmtCurrency(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency: currency || 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  } catch {
+    return `${currency || '$'} ${value.toFixed(2)}`
+  }
 }
 
 function scoreModel(model: ModelItem, standardRatio: number | null): number {
@@ -136,23 +151,6 @@ function StatusBadge({ model, activeTarget }: { model: ModelItem; activeTarget?:
   )
 }
 
-function AttemptDetails({ model }: { model: ModelItem }) {
-  const failures = model.attempts
-    .map((attempt, index) => ({ attempt, number: index + 1 }))
-    .filter(({ attempt }) => !attempt.ok)
-  if (!failures.length) return null
-  return <details className="attempt-details">
-    <summary>查看失败明细（{failures.length}）</summary>
-    <div>
-      {failures.map(({ attempt, number }) => <p key={number}>
-        <strong>第{number}次</strong>
-        <span>{attempt.error || '测活失败，未返回错误信息'}</span>
-        <small>{attempt.httpStatus ? `HTTP ${attempt.httpStatus}` : '未建立有效响应'} · {fmtMs(attempt.totalMs)}</small>
-      </p>)}
-    </div>
-  </details>
-}
-
 function Modal({ title, children, onClose, wide = false, closeDisabled = false }: {
   title: string; children: ReactNode; onClose: () => void; wide?: boolean; closeDisabled?: boolean
 }) {
@@ -162,21 +160,76 @@ function Modal({ title, children, onClose, wide = false, closeDisabled = false }
   closeRef.current = onClose
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     modalRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !closeDisabled) closeRef.current()
+      if (event.key !== 'Tab' || !modalRef.current) return
+      const focusable = [...modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      )]
+      if (!focusable.length) {
+        event.preventDefault()
+        modalRef.current.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown); previous?.focus() }
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+      previous?.focus()
+    }
   }, [closeDisabled])
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !closeDisabled && onClose()}>
       <section ref={modalRef} tabIndex={-1} className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header className="modal-header"><h2 id={titleId}>{title}</h2><IconButton title={closeDisabled ? '操作完成后可关闭' : '关闭'} disabled={closeDisabled} onClick={onClose}><X size={18} /></IconButton></header>
+        <header className="modal-header"><h2 id={titleId} title={title}>{title}</h2><IconButton title={closeDisabled ? '操作完成后可关闭' : '关闭'} disabled={closeDisabled} onClick={onClose}><X size={18} /></IconButton></header>
         {children}
       </section>
     </div>
   )
+}
+
+function AttemptModal({ model, activeTarget, onClose }: { model: ModelItem; activeTarget?: HealthJobTarget; onClose: () => void }) {
+  const successes = model.attempts.filter((attempt) => attempt.ok).length
+  const attemptCount = model.attemptCount || model.attempts.length || 3
+  return <Modal title={`测活详情 · ${model.name}`} onClose={onClose} wide>
+    <div className="modal-body attempt-modal-body">
+      <div className="attempt-overview">
+        <div><span>综合结果</span><StatusBadge model={model} activeTarget={activeTarget} /></div>
+        <div><span>{activeTarget ? '当前进度' : '成功次数'}</span><strong>{activeTarget ? `第 ${activeTarget.attempt || 1}/${activeTarget.attemptCount} 次` : `${successes}/${attemptCount}`}</strong></div>
+        <div><span>最近测活</span><strong>{fmtTime(model.checkedAt)}</strong></div>
+      </div>
+      <div className="attempt-list">
+        {model.attempts.map((attempt, index) => <article className={`attempt-item ${attempt.ok ? 'ok' : 'failed'}`} key={index}>
+          <header>
+            <span className="attempt-index">{index + 1}</span>
+            <div><strong>第 {index + 1} 次请求</strong><small>{attempt.ok ? '请求成功' : '请求失败'}</small></div>
+            <span className="attempt-http">{attempt.httpStatus ? `HTTP ${attempt.httpStatus}` : '无有效响应'}</span>
+          </header>
+          <div className="attempt-metrics">
+            <span>首字 <b>{fmtMs(attempt.ttfbMs)}</b></span>
+            <span>TTFT <b>{fmtMs(attempt.ttftMs)}</b></span>
+            <span>耗时 <b>{fmtMs(attempt.totalMs)}</b></span>
+          </div>
+          {!attempt.ok && <p>{attempt.error || '测活失败，未返回错误信息'}</p>}
+        </article>)}
+        {!model.attempts.length && <div className="empty-inline">尚无测活尝试记录</div>}
+      </div>
+    </div>
+    <footer className="modal-footer"><button type="button" className="button primary" onClick={onClose}>关闭</button></footer>
+  </Modal>
 }
 
 function AuthScreen({ status, onAuthenticated }: { status: AuthStatus; onAuthenticated: () => void }) {
@@ -219,6 +272,7 @@ function SettingsModal({ current, onClose, onSaved }: {
   const [password, setPassword] = useState('')
   const [clearPassword, setClearPassword] = useState(false)
   const [minutes, setMinutes] = useState(current.autoCheckMinutes)
+  const [healthAttempts, setHealthAttempts] = useState(current.healthAttempts)
   const [currentAdminPassword, setCurrentAdminPassword] = useState('')
   const [newAdminPassword, setNewAdminPassword] = useState('')
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('')
@@ -234,6 +288,7 @@ function SettingsModal({ current, onClose, onSaved }: {
       await api.saveSettings({
         username,
         autoCheckMinutes: minutes,
+        healthAttempts,
         ...(clearPassword ? { password: '' } : password ? { password } : {}),
       })
       onSaved(); onClose()
@@ -248,6 +303,7 @@ function SettingsModal({ current, onClose, onSaved }: {
           <label><span>默认登录密码</span><input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder={current.hasPassword ? '已保存，留空不修改' : '尚未设置'} disabled={clearPassword} /></label>
           {current.hasPassword && <label className="check-line"><input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />清除已保存密码</label>}
           <label><span>自动测活间隔（分钟）</span><input type="number" min="0" step="1" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} /></label>
+          <label><span>每个模型测活次数</span><input type="number" min="1" max="10" step="1" value={healthAttempts} onChange={(e) => setHealthAttempts(Number(e.target.value))} /></label>
           <div className="form-section"><LockKeyhole size={15} /><strong>修改管理密码</strong><span>留空则不修改</span></div>
           <label><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>
           <label><span>新管理密码</span><input value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" placeholder="至少 8 个字符" /></label>
@@ -412,7 +468,7 @@ function SiteWizard({ siteId, onClose, onSaved }: {
         <footer className="modal-footer"><button type="button" className="button ghost" onClick={() => void cancel()}>取消</button><button className="button primary">{mode === 'manual' ? '获取模型' : '探测站点'}<ArrowRight size={16} /></button></footer>
       </form>}
       {!loading && step === 2 && mode === 'auto' && editor && <>
-        <div className="site-found"><span className={`platform ${editor.type}`}>{editor.type === 'newapi' ? 'New API' : 'Sub2API'}</span><div><small>账户余额</small><strong>${editor.balance.toFixed(2)}</strong></div><div><small>充值比例</small><strong>x{editor.rechargeRatio}</strong></div></div>
+        <div className="site-found"><span className={`platform ${editor.type}`}>{editor.type === 'newapi' ? 'New API' : 'Sub2API'}</span><div><small>账户余额</small><strong>{fmtCurrency(editor.balance, editor.currency)}</strong></div><div><small>充值比例</small><strong>x{editor.rechargeRatio}</strong></div></div>
         <div className="modal-body selection-list">
           {editor.groups.filter((group) => group.available).map((group) => <label className="selection-row" key={group.id}>
             <input type="checkbox" checked={selectedGroups.has(group.id)} onChange={() => setSelectedGroups((current) => { const next = new Set(current); next.has(group.id) ? next.delete(group.id) : next.add(group.id); return next })} />
@@ -446,58 +502,82 @@ function ModelTable({ group, recommended, onHealth, activeTargetFor }: {
   activeTargetFor: (modelId: number) => HealthJobTarget | undefined
 }) {
   const models = useMemo(() => recommended ? [...group.models].sort((a, b) => scoreModel(b, group.standardRatio) - scoreModel(a, group.standardRatio)) : group.models, [group, recommended])
-  return <div className="model-table-scroll">
-    <table className="model-table">
-      <colgroup>
-        <col className="col-model" /><col className="col-status" /><col className="col-success" />
-        <col className="col-latency" /><col className="col-latency" /><col className="col-latency" />
-        <col className="col-checked" /><col className="col-action" />
-      </colgroup>
-      <thead><tr>
-        <th>模型</th>
-        <th>结果</th>
-        <th>成功率</th>
-        <th title="从请求发出到收到响应首字节的平均时间（TTFB）">平均首字</th>
-        <th title="从请求发出到收到首个非空文本 token 的平均时间">平均 TTFT</th>
-        <th>平均耗时</th>
-        <th>最近测活</th>
-        <th><span className="sr-only">操作</span></th>
-      </tr></thead>
-      <tbody>
-        {models.map((model, index) => {
-          const activeTarget = activeTargetFor(model.id)
-          const checking = Boolean(activeTarget)
-          const hasFailures = model.attempts.some((attempt) => !attempt.ok)
-          return <Fragment key={model.id}>
-            <tr className={`model-row ${activeTarget?.status === 'running' ? 'checking' : activeTarget?.status === 'queued' ? 'queued' : ''}`}>
-              <td data-label="模型"><div className="model-name"><span className="rank">{recommended ? index + 1 : ''}</span><Bot size={15} /><b title={model.name}>{model.name}</b></div></td>
-              <td data-label="结果"><StatusBadge model={model} activeTarget={activeTarget} /></td>
-              <td data-label="成功率"><SuccessValue model={model} activeTarget={activeTarget} /></td>
-              <td data-label="平均首字"><MetricValue metric="ttfb" value={model.avgTtfbMs} label="平均首字（TTFB，首响应字节）" /></td>
-              <td data-label="平均 TTFT"><MetricValue metric="ttft" value={model.avgTtftMs} label="平均 TTFT（首个非空文本 token）" /></td>
-              <td data-label="平均耗时"><MetricValue metric="total" value={model.avgTotalMs} label="平均耗时" /></td>
-              <td data-label="最近测活"><span className="checked-time">{fmtTime(model.checkedAt)}</span></td>
-              <td className="model-action"><IconButton title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'} disabled={checking} onClick={() => onHealth({ modelId: model.id })}><RefreshCw className={activeTarget?.status === 'running' ? 'spin' : ''} size={15} /></IconButton></td>
-            </tr>
-            {hasFailures && <tr className="attempt-row"><td colSpan={8}><AttemptDetails model={model} /></td></tr>}
-          </Fragment>
-        })}
-      </tbody>
-    </table>
-  </div>
+  const [detailsModelId, setDetailsModelId] = useState<number | null>(null)
+  const detailsModel = detailsModelId == null ? null : models.find((model) => model.id === detailsModelId) || null
+  return <>
+    <div className="model-grid">
+      {models.map((model, index) => {
+        const activeTarget = activeTargetFor(model.id)
+        const checking = Boolean(activeTarget)
+        const failures = model.attempts.filter((attempt) => !attempt.ok).length
+        const cardStatus = activeTarget ? 'pending' : model.status
+        return <article className={`model-card model-card-${cardStatus} ${activeTarget?.status === 'running' ? 'checking' : activeTarget?.status === 'queued' ? 'queued' : ''}`} key={model.id}>
+          <header className="model-card-header">
+            <div className="model-card-title">
+              {recommended && <span className="model-rank">{index + 1}</span>}
+              <span className="model-icon"><Bot size={16} /></span>
+              <div className="model-heading"><small>模型</small><h4 title={model.name}>{model.name}</h4></div>
+            </div>
+            <div className="model-card-controls">
+              <StatusBadge model={model} activeTarget={activeTarget} />
+            </div>
+          </header>
+          <div className="model-metrics">
+            <div className="model-metric"><span>成功率</span><SuccessValue model={model} activeTarget={activeTarget} /></div>
+            <div className="model-metric"><span>平均首字</span><MetricValue metric="ttfb" value={model.avgTtfbMs} label="平均首字（TTFB，首响应字节）" /></div>
+            <div className="model-metric"><span>平均 TTFT</span><MetricValue metric="ttft" value={model.avgTtftMs} label="平均 TTFT（首个非空文本 token）" /></div>
+            <div className="model-metric"><span>平均耗时</span><MetricValue metric="total" value={model.avgTotalMs} label="平均耗时" /></div>
+          </div>
+          <footer className="model-card-footer">
+            <div><span>最近测活</span><time dateTime={model.checkedAt || undefined}>{fmtTime(model.checkedAt)}</time></div>
+            {model.attempts.length > 0 && <button type="button" className={`attempt-link ${failures ? 'has-failures' : ''}`} onClick={() => setDetailsModelId(model.id)}>
+              {failures ? `${failures} 次失败` : `${model.successCount ?? model.attempts.length} 次成功`} · 详情
+            </button>}
+            <IconButton title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'} disabled={checking} onClick={() => onHealth({ modelId: model.id })}><RefreshCw className={activeTarget?.status === 'running' ? 'spin' : ''} size={15} /></IconButton>
+          </footer>
+        </article>
+      })}
+    </div>
+    {detailsModel && <AttemptModal model={detailsModel} activeTarget={activeTargetFor(detailsModel.id)} onClose={() => setDetailsModelId(null)} />}
+  </>
 }
 
-function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, onHealth, isHealthActive, activeTargetFor, onChanged, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
+function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
   site: SiteItem; recommended: boolean; onEdit: () => void; onDelete: () => void;
-  onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
+  onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onError: (message: string) => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
   query: string; statusFilter: StatusFilter;
   dragging: { kind: 'site' | 'group'; id: number } | null; setDragging: (value: { kind: 'site' | 'group'; id: number } | null) => void
 }) {
   const [localGroups, setLocalGroups] = useState(site.groups)
   const [siteExpanded, setSiteExpanded] = useState(site.expanded)
   const groupMutationRef = useRef(false)
-  useEffect(() => { if (!groupMutationRef.current) setLocalGroups(site.groups) }, [site.groups])
-  useEffect(() => setSiteExpanded(site.expanded), [site.id, site.expanded])
+  const siteToggleRef = useRef(false)
+  const siteExpandedOverrideRef = useRef<boolean | null>(null)
+  const groupToggleRef = useRef(new Set<number>())
+  const groupExpandedOverridesRef = useRef(new Map<number, boolean>())
+  useEffect(() => {
+    if (groupMutationRef.current) return
+    setLocalGroups(site.groups.map((group) => {
+      const desired = groupExpandedOverridesRef.current.get(group.id)
+      if (desired == null) return group
+      if (group.expanded === desired) {
+        groupExpandedOverridesRef.current.delete(group.id)
+        return group
+      }
+      return { ...group, expanded: desired }
+    }))
+  }, [site.groups])
+  useEffect(() => {
+    const desired = siteExpandedOverrideRef.current
+    if (desired == null) {
+      setSiteExpanded(site.expanded)
+      return
+    }
+    if (site.expanded === desired) {
+      siteExpandedOverrideRef.current = null
+      setSiteExpanded(site.expanded)
+    }
+  }, [site.id, site.expanded])
   const orderedGroups = recommended ? [...localGroups].sort((a, b) => {
     const bestA = Math.max(...a.models.map((m) => scoreModel(m, a.standardRatio)), -1_000_000)
     const bestB = Math.max(...b.models.map((m) => scoreModel(m, b.standardRatio)), -1_000_000)
@@ -518,16 +598,40 @@ function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, o
   }).filter((group): group is GroupItem => group !== null)
   const siteModels = localGroups.flatMap((group) => group.models)
   async function toggleSite() {
+    if (siteToggleRef.current) return
+    siteToggleRef.current = true
     const next = !siteExpanded
+    siteExpandedOverrideRef.current = next
     setSiteExpanded(next)
-    try { await api.expanded('site', site.id, next); onChanged() }
-    catch { setSiteExpanded(!next) }
+    try {
+      await api.expanded('site', site.id, next)
+      setSiteExpanded(next)
+    }
+    catch (error) {
+      siteExpandedOverrideRef.current = null
+      setSiteExpanded(!next)
+      onError(error instanceof Error ? error.message : String(error))
+    } finally {
+      siteToggleRef.current = false
+    }
   }
   async function toggleGroup(group: GroupItem) {
+    if (groupToggleRef.current.has(group.id)) return
+    groupToggleRef.current.add(group.id)
     const next = !group.expanded
+    groupExpandedOverridesRef.current.set(group.id, next)
     setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: next } : item))
-    try { await api.expanded('group', group.id, next); onChanged() }
-    catch { setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: !next } : item)) }
+    try {
+      await api.expanded('group', group.id, next)
+      setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: next } : item))
+    }
+    catch (error) {
+      groupExpandedOverridesRef.current.delete(group.id)
+      setLocalGroups((current) => current.map((item) => item.id === group.id ? { ...item, expanded: !next } : item))
+      onError(error instanceof Error ? error.message : String(error))
+    } finally {
+      groupToggleRef.current.delete(group.id)
+    }
   }
   async function dropGroup(targetId: number) {
     if (recommended || filtering || groupMutationRef.current || dragging?.kind !== 'group' || dragging.id === targetId) return
@@ -556,14 +660,14 @@ function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, o
     <header className="site-header">
       <div className="site-reorder">
         <button className="drag-handle" title={filtering ? '筛选时无法排序' : '拖动排序'} draggable={!recommended && !filtering} onDragStart={() => setDragging({ kind: 'site', id: site.id })} disabled={recommended || filtering}><GripVertical size={18} /></button>
-        <button className="collapse" onClick={() => void toggleSite()} title={siteExpanded ? '收起站点' : '展开站点'}>{siteExpanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
+        <button className="collapse" aria-expanded={siteExpanded} onClick={() => void toggleSite()} title={siteExpanded ? '收起站点' : '展开站点'}>{siteExpanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
       </div>
       <div className="site-identity">
         <div className="site-mark"><Server size={18} /></div>
-        <div><div className="site-name-line"><h2>{site.name}</h2><span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>{site.connectionMode === 'manual' ? '手动接入' : site.type === 'newapi' ? 'New API' : 'Sub2API'}</span></div><a href={site.baseUrl} target="_blank" rel="noreferrer">{site.baseUrl}</a></div>
+        <div><small className="layer-kicker">站点</small><div className="site-name-line"><h2>{site.name}</h2><span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>{site.connectionMode === 'manual' ? '手动接入' : site.type === 'newapi' ? 'New API' : 'Sub2API'}</span></div><a href={site.baseUrl} target="_blank" rel="noreferrer">{site.baseUrl}</a></div>
       </div>
       <div className="site-facts">
-        <div><small>账户余额</small><strong>{site.balanceKnown ? `$${site.balance.toFixed(2)}` : '--'}</strong></div>
+        <div><small>账户余额</small><strong>{site.balanceKnown ? fmtCurrency(site.balance, site.currency) : '--'}</strong></div>
         <div><small>监控范围</small><strong>{site.groups.length}<em> 组</em> / {site.groups.reduce((sum, group) => sum + group.models.length, 0)}<em> 模型</em></strong></div>
         <div><small>健康分布</small><HealthBreakdown models={siteModels} /></div>
         <div><small>最近测活</small><span>{fmtTime(site.lastCheckAt)}</span></div>
@@ -577,8 +681,8 @@ function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, o
         <header className="group-header">
           <div className="group-leading">
             <button className="drag-handle" title={filtering ? '筛选时无法排序' : '拖动排序'} draggable={!recommended && !filtering} onDragStart={(e) => { e.stopPropagation(); setDragging({ kind: 'group', id: group.id }) }} disabled={recommended || filtering}><GripVertical size={16} /></button>
-            <button className="collapse" onClick={() => void toggleGroup(group)} title={group.expanded ? '收起分组' : '展开分组'}>{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
-            <div className="group-title"><Layers3 size={14} /><h3>{group.name}</h3>{group.platform && <span>{group.platform}</span>}</div>
+            <button className="collapse" aria-expanded={group.expanded} onClick={() => void toggleGroup(group)} title={group.expanded ? '收起分组' : '展开分组'}>{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
+            <div className="group-title"><Layers3 size={14} /><div><small className="layer-kicker">分组</small><div><h3>{group.name}</h3>{group.platform && <span>{group.platform}</span>}</div></div></div>
           </div>
           <div className="group-meta">
             <span>分组倍率 <b>{group.ratioDynamic ? '自动' : `x${group.ratio}`}</b></span>
@@ -586,7 +690,7 @@ function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, o
             <span>{group.models.length} 个模型</span>
             <HealthBreakdown models={group.models} />
           </div>
-          <div className="group-actions"><span className="mobile-order"><IconButton title="分组上移" disabled={recommended || filtering || groupIndex === 0} onClick={() => void moveGroup(groupIndex, -1)}><MoveUp size={14} /></IconButton><IconButton title="分组下移" disabled={recommended || filtering || groupIndex === groups.length - 1} onClick={() => void moveGroup(groupIndex, 1)}><MoveDown size={14} /></IconButton></span><IconButton title={groupChecking ? '此分组正在测活' : '测活此分组'} disabled={groupChecking} onClick={() => onHealth({ groupId: group.id })}><RefreshCw className={groupChecking ? 'spin' : ''} size={15} /></IconButton></div>
+          <div className="group-actions"><span className="mobile-order"><IconButton title="分组上移" disabled={recommended || filtering || groupIndex === 0} onClick={() => void moveGroup(groupIndex, -1)}><MoveUp size={14} /></IconButton><IconButton title="分组下移" disabled={recommended || filtering || groupIndex === groups.length - 1} onClick={() => void moveGroup(groupIndex, 1)}><MoveDown size={14} /></IconButton></span><button type="button" className="button compact group-health-button" title={groupChecking ? '此分组正在测活' : '测活此分组'} disabled={groupChecking} onClick={() => onHealth({ groupId: group.id })}><RefreshCw className={groupChecking ? 'spin' : ''} size={15} /><span>{groupChecking ? '测活中' : '测活分组'}</span></button></div>
         </header>
         {group.expanded && <ModelTable group={group} recommended={recommended} onHealth={onHealth} activeTargetFor={activeTargetFor} />}
       </section>
@@ -612,20 +716,35 @@ export function App() {
   const pendingHealthRef = useRef(new Set<string>())
   const dashboardEpochRef = useRef(0)
   const dashboardRequestRef = useRef<Promise<void> | null>(null)
+  const dashboardAbortRef = useRef<AbortController | null>(null)
   const jobsRequestRef = useRef<Promise<void> | null>(null)
+  const jobsAbortRef = useRef<AbortController | null>(null)
   const jobsEpochRef = useRef(0)
   const siteReorderRef = useRef(false)
+  const resumeRefreshRef = useRef<() => void>(() => undefined)
+  const lastResumeAtRef = useRef(0)
 
   function loadDashboard(silent = false): Promise<void> {
     if (dashboardRequestRef.current) return dashboardRequestRef.current
     const epoch = dashboardEpochRef.current
-    const request = api.dashboard()
+    const controller = new AbortController()
+    dashboardAbortRef.current = controller
+    const request = api.dashboard(controller.signal)
       .then((data) => {
-        if (epoch === dashboardEpochRef.current) setDashboard(data)
+        if (epoch !== dashboardEpochRef.current) return
+        setDashboard(data)
         if (!silent) setError('')
       })
-      .catch((err) => { if (!silent) setError(err instanceof Error ? err.message : String(err)) })
-      .finally(() => { dashboardRequestRef.current = null })
+      .catch((err) => {
+        if (epoch !== dashboardEpochRef.current || controller.signal.aborted) return
+        if (!silent) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (dashboardRequestRef.current === request) {
+          dashboardRequestRef.current = null
+          if (dashboardAbortRef.current === controller) dashboardAbortRef.current = null
+        }
+      })
     dashboardRequestRef.current = request
     return request
   }
@@ -633,13 +752,23 @@ export function App() {
   function loadJobs(silent = false): Promise<void> {
     if (jobsRequestRef.current) return jobsRequestRef.current
     const epoch = jobsEpochRef.current
-    const request = api.jobs()
+    const controller = new AbortController()
+    jobsAbortRef.current = controller
+    const request = api.jobs(controller.signal)
       .then((data) => {
-        if (epoch === jobsEpochRef.current) setJobs(data)
-        if (!silent) setError('')
+        if (epoch !== jobsEpochRef.current) return
+        setJobs(data)
       })
-      .catch((err) => { if (!silent) setError(err instanceof Error ? err.message : String(err)) })
-      .finally(() => { jobsRequestRef.current = null })
+      .catch((err) => {
+        if (epoch !== jobsEpochRef.current || controller.signal.aborted) return
+        if (!silent) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (jobsRequestRef.current === request) {
+          jobsRequestRef.current = null
+          if (jobsAbortRef.current === controller) jobsAbortRef.current = null
+        }
+      })
     jobsRequestRef.current = request
     return request
   }
@@ -647,22 +776,70 @@ export function App() {
   async function load(silent = false): Promise<void> {
     await Promise.all([loadDashboard(silent), loadJobs(silent)])
   }
+
+  function cancelReadRequests(): void {
+    dashboardEpochRef.current += 1
+    jobsEpochRef.current += 1
+    dashboardAbortRef.current?.abort()
+    jobsAbortRef.current?.abort()
+    dashboardAbortRef.current = null
+    jobsAbortRef.current = null
+    dashboardRequestRef.current = null
+    jobsRequestRef.current = null
+  }
+
+  function loadFresh(silent = true): Promise<void> {
+    cancelReadRequests()
+    return load(silent)
+  }
+  resumeRefreshRef.current = () => {
+    if (auth?.authenticated) void loadFresh(Boolean(dashboard))
+  }
   useEffect(() => {
     void api.authStatus().then(setAuth).catch((err) => setError(err instanceof Error ? err.message : String(err)))
     const expired = () => { setAuth((current) => ({ configured: current?.configured ?? true, authenticated: false })); setDashboard(null) }
     window.addEventListener('aimon-auth-expired', expired)
     return () => window.removeEventListener('aimon-auth-expired', expired)
   }, [])
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState === 'hidden') {
+        cancelReadRequests()
+        return
+      }
+      const now = Date.now()
+      if (now - lastResumeAtRef.current < 500) return
+      lastResumeAtRef.current = now
+      resumeRefreshRef.current()
+    }
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('focus', resume)
+    window.addEventListener('pageshow', resume)
+    return () => {
+      document.removeEventListener('visibilitychange', resume)
+      window.removeEventListener('focus', resume)
+      window.removeEventListener('pageshow', resume)
+    }
+  }, [])
   const hasActiveJob = jobs.some((job) => job.status === 'running' || job.status === 'queued')
   useEffect(() => {
     if (!auth?.authenticated) return
     let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    const refresh = async (silent: boolean) => {
-      await load(silent)
-      if (!stopped) timer = setTimeout(() => void refresh(true), hasActiveJob ? 1000 : 4000)
+    let activePolls = 0
+    const refresh = async (initial: boolean) => {
+      if (document.visibilityState !== 'hidden') {
+        if (initial || !hasActiveJob) {
+          await load(initial ? false : true)
+        } else {
+          await loadJobs(true)
+          activePolls += 1
+          if (activePolls % 3 === 0) await loadDashboard(true)
+        }
+      }
+      if (!stopped) timer = setTimeout(() => void refresh(false), hasActiveJob ? 1000 : 4000)
     }
-    void refresh(false)
+    void refresh(true)
     return () => {
       stopped = true
       if (timer) clearTimeout(timer)
@@ -693,7 +870,7 @@ export function App() {
             label: `${site.name} / ${group.name} / ${model.name}`,
             status: 'queued',
             attempt: 0,
-            attemptCount: model.attemptCount || 3,
+            attemptCount: dashboard.settings.healthAttempts,
           })
         }
       }
@@ -702,6 +879,7 @@ export function App() {
     return {
       id: `optimistic:${key}:${Date.now()}`,
       status: 'queued',
+      phase: scope.modelId ? 'checking' : 'refreshing',
       total: targets.length,
       completed: 0,
       current: '',
@@ -775,15 +953,21 @@ export function App() {
     }
   }
   const activeJobs = useMemo(() => jobs.filter((job) => job.status === 'running' || job.status === 'queued'), [jobs])
+  const refreshingJobs = activeJobs.filter((job) => job.phase === 'refreshing')
   const activeTargets = useMemo(() => activeJobs.flatMap((job) => job.targets || []).filter((target) => target.status === 'queued' || target.status === 'running'), [activeJobs])
   const runningTargets = activeTargets.filter((target) => target.status === 'running')
   const queuedTargets = activeTargets.filter((target) => target.status === 'queued')
   const activeTotal = activeJobs.reduce((sum, job) => sum + job.total, 0)
   const activeCompleted = activeJobs.reduce((sum, job) => sum + job.completed, 0)
-  const activeLabel = runningTargets.length
+  const activeLabel = refreshingJobs.length
+    ? `正在同步测活前的站点信息：${refreshingJobs.flatMap((job) => job.targets).map((target) => target.label).join('；')}`
+    : runningTargets.length
     ? `正在测活：${runningTargets.map((target) => `${target.label}（第${target.attempt || 1}/${target.attemptCount}次）`).join('；')}`
     : activeTargets.length ? `等待测活：${activeTargets.map((target) => target.label).join('；')}` : '任务排队中'
-  const currentTargetLabel = runningTargets[0]?.label || queuedTargets[0]?.label || ''
+  const currentTargetLabel = refreshingJobs.length
+    ? '正在刷新分组倍率与站点余额'
+    : runningTargets[0]?.label || queuedTargets[0]?.label || ''
+  const refreshWarning = activeJobs.find((job) => job.refreshWarning)?.refreshWarning || ''
   const activeTargetByModel = useMemo(() => new Map(activeTargets.map((target) => [target.modelId, target])), [activeTargets])
   const activeGroupIds = useMemo(() => new Set(activeTargets.map((target) => target.groupId)), [activeTargets])
   const activeSiteIds = useMemo(() => new Set(activeTargets.map((target) => target.siteId)), [activeTargets])
@@ -804,7 +988,7 @@ export function App() {
   return <div className="app-shell">
     <header className="app-header">
       <div className="brand"><div className="logo-mark"><Activity size={20} /></div><div><strong>AIMon</strong><span>AI RELAY MONITOR</span></div></div>
-      <div className={`runtime-state ${activeJobs.length ? 'busy' : ''}`}><span />{activeJobs.length ? `正在测活 ${activeCompleted}/${activeTotal}` : '监控就绪'}</div>
+      <div className={`runtime-state ${activeJobs.length ? 'busy' : ''}`}><span />{activeJobs.length ? refreshingJobs.length ? '正在同步站点信息' : `正在测活 ${activeCompleted}/${activeTotal}` : '监控就绪'}</div>
       <div className="app-header-actions"><IconButton title="默认配置" onClick={() => setSettingsOpen(true)}><SettingsIcon size={17} /></IconButton><IconButton title="退出登录" onClick={() => void signOut()}><LogOut size={17} /></IconButton></div>
     </header>
     <main className="workspace">
@@ -819,6 +1003,7 @@ export function App() {
           <div><Bot size={17} /><span>模型</span><strong>{dashboard.summary.models}</strong></div>
           <div><Activity size={17} /><span>优质模型</span><strong>{dashboard.summary.excellent}<em> / {dashboard.summary.models}</em></strong></div>
           <div><Timer size={17} /><span>自动测活</span><strong>{dashboard.settings.autoCheckMinutes ? `${dashboard.settings.autoCheckMinutes} 分钟` : '关闭'}</strong></div>
+          <div><RefreshCw size={17} /><span>测活次数</span><strong>{dashboard.settings.healthAttempts}<em> 次 / 模型</em></strong></div>
         </section>
         <section className="filter-bar">
           <label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索站点、分组或模型" aria-label="搜索站点、分组或模型" />{query && <button type="button" onClick={() => setQuery('')} title="清空搜索" aria-label="清空搜索"><X size={14} /></button>}</label>
@@ -831,12 +1016,12 @@ export function App() {
           {filtering && <span className="filter-result">显示 {visibleSites.length} / {dashboard.sites.length} 个站点</span>}
         </section>
       </section>
-      {activeJobs.length > 0 && <div className="job-strip" title={activeLabel} aria-live="polite"><LoaderCircle size={16} className="spin" /><span><strong>{runningTargets.length}</strong> 个运行中 · <strong>{queuedTargets.length}</strong> 个排队中{currentTargetLabel && <em>{currentTargetLabel}</em>}</span><div className="job-progress"><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
+      {activeJobs.length > 0 && <div className="job-strip" title={activeLabel} aria-live="polite"><LoaderCircle size={16} className="spin" /><span><strong>{refreshingJobs.length ? '同步中' : `${runningTargets.length} 个运行中`}</strong>{!refreshingJobs.length && <> · <strong>{queuedTargets.length}</strong> 个排队中</>}{currentTargetLabel && <em>{currentTargetLabel}</em>}{refreshWarning && <em className="job-warning">{refreshWarning}</em>}</span><div className="job-progress"><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
       {error && <div className="page-error"><CircleAlert size={18} />{error}<button onClick={() => void load()}>重试</button></div>}
       <section className="site-list">
         {visibleSites.map((site) => {
           const index = dashboard.sites.findIndex((item) => item.id === site.id)
-          return <div key={site.id} onDragOver={(e) => !recommended && !filtering && e.preventDefault()} onDrop={() => void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void load(true)} dragging={dragging} setDragging={setDragging} /></div>
+          return <div key={site.id} onDragOver={(e) => !recommended && !filtering && e.preventDefault()} onDrop={() => void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void load(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
         })}
         {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
         {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}

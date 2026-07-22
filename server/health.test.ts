@@ -3,12 +3,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getHealthTargets: vi.fn(),
   remoteFetch: vi.fn(),
+  refreshHealthMetadata: vi.fn(async () => [] as string[]),
   insertedChecks: [] as Array<{ id: number; modelId: number }>,
   completedAttempts: new Map<number, any[]>(),
+  completedStatuses: new Map<number, string>(),
+  healthAttempts: 3,
   nextCheckId: 1,
 }))
 
-vi.mock('./site-service.js', () => ({ getHealthTargets: mocks.getHealthTargets }))
+vi.mock('./site-service.js', () => ({
+  getHealthTargets: mocks.getHealthTargets,
+  refreshHealthMetadata: mocks.refreshHealthMetadata,
+}))
 vi.mock('./http.js', () => ({
   extractMessage: (body: any) => String(body?.message || body?.error?.message || body?.error || ''),
   remoteFetch: mocks.remoteFetch,
@@ -30,10 +36,12 @@ vi.mock('./db.js', () => ({
         return {
           run: (...args: any[]) => {
             mocks.completedAttempts.set(Number(args[8]), JSON.parse(String(args[7])))
+            mocks.completedStatuses.set(Number(args[8]), String(args[6]))
             return { changes: 1 }
           },
         }
       }
+      if (/SELECT health_attempts FROM settings/i.test(sql)) return { get: () => ({ health_attempts: mocks.healthAttempts }) }
       if (/SELECT \* FROM health_checks/i.test(sql)) return { get: () => undefined }
       if (/SELECT h\.status, h\.attempts_json/i.test(sql)) return { all: () => [] }
       return { run: () => ({ changes: 1 }), get: () => undefined, all: () => [] }
@@ -79,8 +87,12 @@ async function waitForJob(id: string): Promise<void> {
 afterEach(() => {
   mocks.getHealthTargets.mockReset()
   mocks.remoteFetch.mockReset()
+  mocks.refreshHealthMetadata.mockReset()
+  mocks.refreshHealthMetadata.mockResolvedValue([])
   mocks.insertedChecks.length = 0
   mocks.completedAttempts.clear()
+  mocks.completedStatuses.clear()
+  mocks.healthAttempts = 3
 })
 
 describe('health job runtime state', () => {
@@ -128,5 +140,46 @@ describe('health job runtime state', () => {
       'second failure',
       '',
     ])
+  })
+
+  it('snapshots the configured attempt count and applies proportional status thresholds', async () => {
+    mocks.healthAttempts = 4
+    mocks.getHealthTargets.mockReturnValue([target(firstModelId, 'model-four')])
+    const responses = [
+      successResponse(),
+      successResponse(),
+      successResponse(),
+      new Response('{"error":{"message":"fourth failure"}}', { status: 500, headers: { 'Content-Type': 'application/json' } }),
+    ]
+    mocks.remoteFetch.mockImplementation(async () => responses.shift()!)
+
+    const job = startHealthCheck({ modelId: firstModelId })
+    expect(job.targets[0].attemptCount).toBe(4)
+    await waitForJob(job.id)
+
+    const check = mocks.insertedChecks.find((row) => row.modelId === firstModelId)!
+    expect(mocks.remoteFetch).toHaveBeenCalledTimes(4)
+    expect(mocks.completedAttempts.get(check.id)).toHaveLength(4)
+    expect(mocks.completedStatuses.get(check.id)).toBe('available')
+  })
+
+  it('returns a visible refreshing job before group metadata synchronization finishes', async () => {
+    mocks.getHealthTargets.mockReturnValue([target(secondModelId, 'model-sync')])
+    let releaseRefresh!: () => void
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve })
+    mocks.refreshHealthMetadata.mockImplementationOnce(async () => {
+      await refreshGate
+      return []
+    })
+    mocks.remoteFetch.mockResolvedValue(successResponse())
+
+    const job = startHealthCheck({ groupId })
+    expect(job).toMatchObject({ status: 'queued', phase: 'refreshing', total: 1 })
+    await vi.waitFor(() => expect(mocks.refreshHealthMetadata).toHaveBeenCalledWith({ groupId }))
+    expect(job.targets[0].status).toBe('queued')
+
+    releaseRefresh()
+    await waitForJob(job.id)
+    expect(job.phase).toBe('checking')
   })
 })

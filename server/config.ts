@@ -22,7 +22,6 @@ export const config = {
   dataDir: path.resolve(process.env.DATA_DIR || './data'),
   secret,
   requestTimeoutMs: positiveNumber(process.env.REQUEST_TIMEOUT_MS, 30_000, 1_000),
-  healthAttempts: Math.floor(positiveNumber(process.env.HEALTH_ATTEMPTS, 3, 1)),
   basicAuthUser,
   basicAuthPassword,
   bootstrapPassword,

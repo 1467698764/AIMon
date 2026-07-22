@@ -3,7 +3,7 @@ import { config } from './config.js'
 import { db, nowIso } from './db.js'
 import { extractMessage, remoteFetch } from './http.js'
 import { hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
-import { getHealthTargets } from './site-service.js'
+import { getHealthTargets, refreshHealthMetadata } from './site-service.js'
 import type { HealthAttempt, HealthStatus } from './types.js'
 
 interface HealthScope {
@@ -15,6 +15,7 @@ interface HealthScope {
 export interface HealthJob {
   id: string
   status: 'queued' | 'running' | 'completed' | 'failed'
+  phase: 'refreshing' | 'checking'
   total: number
   completed: number
   current: string
@@ -22,6 +23,7 @@ export interface HealthJob {
   createdAt: string
   finishedAt?: string
   error?: string
+  refreshWarning?: string
   deduplicated?: boolean
 }
 
@@ -337,25 +339,30 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   return result
 }
 
-async function runTarget(target: Record<string, any>, checkId: number, onAttempt?: (attempt: number) => void): Promise<void> {
+async function runTarget(
+  target: Record<string, any>,
+  checkId: number,
+  attemptCount: number,
+  onAttempt?: (attempt: number) => void,
+): Promise<void> {
   const attempts: HealthAttempt[] = []
-  for (let index = 0; index < config.healthAttempts; index += 1) {
+  for (let index = 0; index < attemptCount; index += 1) {
     onAttempt?.(index + 1)
     let endpointTypes: string[] = []
     try { endpointTypes = JSON.parse(target.endpoint_types_json || '[]') } catch { /* Use compatibility probing. */ }
     attempts.push(await testOnce(target.base_url, target.apiKey, target.model_name, endpointTypes))
   }
   const successes = attempts.filter((attempt) => attempt.ok)
-  const status: HealthStatus = successes.length === config.healthAttempts
+  const status: HealthStatus = successes.length === attemptCount
     ? 'excellent'
-    : successes.length >= 2
+    : successes.length >= Math.ceil(attemptCount * 2 / 3)
       ? 'available'
       : 'failed'
   db.prepare(`
     UPDATE health_checks SET checked_at = ?, success_count = ?, attempt_count = ?, avg_ttfb_ms = ?,
       avg_ttft_ms = ?, avg_total_ms = ?, status = ?, attempts_json = ? WHERE id = ?
   `).run(
-    nowIso(), successes.length, config.healthAttempts,
+    nowIso(), successes.length, attemptCount,
     average(successes.map((attempt) => attempt.ttfbMs)),
     average(successes.map((attempt) => attempt.ttftMs)),
     average(successes.map((attempt) => attempt.totalMs)),
@@ -368,9 +375,9 @@ async function runTarget(target: Record<string, any>, checkId: number, onAttempt
   `).run(target.model_id, target.model_id)
 }
 
-function targetSignature(target: Record<string, any>): string {
+function targetSignature(target: Record<string, any>, attemptCount: number): string {
   const fingerprint = createHash('sha256').update(String(target.apiKey)).digest('hex').slice(0, 16)
-  return `${target.model_id}|${target.config_revision}|${target.base_url}|${fingerprint}|${target.model_name}`
+  return `${target.model_id}|${target.config_revision}|${target.base_url}|${fingerprint}|${target.model_name}|${attemptCount}`
 }
 
 function copyCheck(fromId: number, toId: number): void {
@@ -386,16 +393,17 @@ function copyCheck(fromId: number, toId: number): void {
 function runModelOnce(
   target: Record<string, any>,
   checkId: number,
+  attemptCount: number,
   onStart?: () => void,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
-  const signature = targetSignature(target)
+  const signature = targetSignature(target, attemptCount)
   const existing = activeModels.get(signature)
   if (existing) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
   const task = () => getSiteSemaphore(target.site_id).run(async () => {
     onStart?.()
-    await runTarget(target, checkId, onAttempt)
+    await runTarget(target, checkId, attemptCount, onAttempt)
   })
   const promise = task()
     .catch((error) => {
@@ -415,15 +423,23 @@ function targetActivityKey(target: Record<string, any>): string {
 }
 
 function updateSiteResults(targets: Array<Record<string, any>>): void {
-  const siteIds = [...new Set(targets.map((target) => Number(target.site_id)))]
-  for (const siteId of siteIds) {
+  const scopes = new Map<string, { siteId: number; configRevision: number }>()
+  for (const target of targets) {
+    const siteId = Number(target.site_id)
+    const configRevision = Number(target.config_revision)
+    scopes.set(`${siteId}:${configRevision}`, { siteId, configRevision })
+  }
+  for (const { siteId, configRevision } of scopes.values()) {
     const latest = db.prepare(`
       SELECT h.status, h.attempts_json, h.checked_at FROM health_checks h
       JOIN models m ON m.id = h.model_id JOIN site_groups g ON g.id = m.group_id
       WHERE g.site_id = ? AND h.id = (
-        SELECT id FROM health_checks WHERE model_id = m.id ORDER BY checked_at DESC, id DESC LIMIT 1
+        SELECT id FROM health_checks
+        WHERE model_id = m.id AND config_revision = ?
+        ORDER BY checked_at DESC, id DESC LIMIT 1
       ) ORDER BY h.checked_at DESC
-    `).all(siteId) as Array<Record<string, any>>
+    `).all(siteId, configRevision) as Array<Record<string, any>>
+    if (!latest.length) continue
     const failed = latest.find((row) => row.status === 'failed')
     let message: string | null = null
     if (failed) {
@@ -433,8 +449,8 @@ function updateSiteResults(targets: Array<Record<string, any>>): void {
         message = '部分模型测活失败'
       }
     }
-    db.prepare('UPDATE sites SET last_check_at = ?, last_error = ? WHERE id = ?')
-      .run(latest[0]?.checked_at || nowIso(), message, siteId)
+    db.prepare('UPDATE sites SET last_check_at = ?, last_error = ? WHERE id = ? AND config_revision = ?')
+      .run(latest[0]?.checked_at || nowIso(), message, siteId, configRevision)
   }
 }
 
@@ -446,12 +462,25 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
     const existing = requestedTargets
       .map((target) => jobs.get(activeTargetJobs.get(targetActivityKey(target)) || ''))
       .find((job): job is HealthJob => Boolean(job && (job.status === 'queued' || job.status === 'running')))
-    if (existing) return { ...existing, deduplicated: true }
+    if (existing) {
+      if (!scope.modelId) {
+        void refreshHealthMetadata(scope).then((warnings) => {
+          if (warnings.length) existing.refreshWarning = [existing.refreshWarning, ...warnings].filter(Boolean).join('；')
+        }).catch((error) => {
+          existing.refreshWarning = [existing.refreshWarning, `站点信息同步失败：${error instanceof Error ? error.message : String(error)}`]
+            .filter(Boolean).join('；')
+        })
+      }
+      return { ...existing, deduplicated: true }
+    }
   }
   if (!targets.length) throw new Error('当前范围内的模型已在测活')
+  const settings = db.prepare('SELECT health_attempts FROM settings WHERE id = 1').get() as Record<string, any> | undefined
+  const attemptCount = Math.max(1, Math.min(10, Math.floor(Number(settings?.health_attempts || 3))))
   const job: HealthJob = {
     id: randomUUID(),
     status: 'queued',
+    phase: scope.modelId ? 'checking' : 'refreshing',
     total: targets.length,
     completed: 0,
     current: '',
@@ -462,7 +491,7 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
       label: `${target.site_name} / ${target.group_name} / ${target.model_name}`,
       status: 'queued',
       attempt: 0,
-      attemptCount: config.healthAttempts,
+      attemptCount,
     })),
     createdAt: nowIso(),
     deduplicated: targets.length < requestedTargets.length || undefined,
@@ -471,12 +500,12 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
   const checkIds = targets.map((target) => Number(db.prepare(`
     INSERT INTO health_checks (model_id, checked_at, attempt_count, config_revision, status)
     VALUES (?, ?, ?, ?, 'pending')
-  `).run(target.model_id, nowIso(), config.healthAttempts, target.config_revision).lastInsertRowid))
+  `).run(target.model_id, nowIso(), attemptCount, target.config_revision).lastInsertRowid))
   for (const target of targets) activeTargetJobs.set(targetActivityKey(target), job.id)
 
   const promise = new Promise<void>((resolve) => {
     setImmediate(() => {
-      void executeHealthJob(job, targets, checkIds).finally(resolve)
+      void executeHealthJob(job, scope, targets, checkIds, attemptCount).finally(resolve)
     })
   })
   jobPromises.set(job.id, promise)
@@ -485,15 +514,37 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
 
 async function executeHealthJob(
   job: HealthJob,
+  scope: HealthScope,
   targets: Array<Record<string, any>>,
   checkIds: number[],
+  attemptCount: number,
 ): Promise<void> {
     job.status = 'running'
     try {
+      const metadataBySite = new Map<number, Promise<void>>()
+      if (!scope.modelId) {
+        for (const target of targets) {
+          const siteId = Number(target.site_id)
+          if (metadataBySite.has(siteId)) continue
+          const metadataScope = scope.groupId ? { groupId: scope.groupId } : { siteId }
+          metadataBySite.set(siteId, refreshHealthMetadata(metadataScope)
+            .then((warnings) => {
+              if (warnings.length) {
+                job.refreshWarning = [job.refreshWarning, ...warnings].filter(Boolean).join('；')
+              }
+            })
+            .catch((error) => {
+              job.refreshWarning = [job.refreshWarning, `站点信息同步失败：${error instanceof Error ? error.message : String(error)}`]
+                .filter(Boolean).join('；')
+            }))
+        }
+      }
       const results = await Promise.allSettled(targets.map(async (target, index) => {
         const jobTarget = job.targets[index]
         try {
-          await runModelOnce(target, checkIds[index], () => {
+          await metadataBySite.get(Number(target.site_id))
+          job.phase = 'checking'
+          await runModelOnce(target, checkIds[index], attemptCount, () => {
             jobTarget.status = 'running'
             job.current = jobTarget.label
           }, (attempt) => {
