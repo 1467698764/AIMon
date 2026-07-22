@@ -17,6 +17,7 @@ const {
   prepareManualSite,
   refreshHealthMetadata,
   saveSettings,
+  updateExpandedBulk,
 } = await import('../server/site-service.js')
 
 globalThis.fetch = async () => new Response(JSON.stringify({
@@ -54,6 +55,19 @@ assert.deepEqual(getHealthTargets({ siteId }).map((target: any) => target.apiKey
 ])
 assert.doesNotMatch(JSON.stringify(getDashboard()), /sk-cheap|sk-premium/)
 assert.doesNotMatch(JSON.stringify(getSiteEditor(siteId)), /sk-cheap|sk-premium|"apiKey"/)
+
+const collapsed = updateExpandedBulk([siteId, siteId], false)
+assert.equal(collapsed.sites, 1)
+assert.equal(collapsed.groups, 2)
+assert.equal(getDashboard().sites[0].expanded, false)
+assert.ok(getDashboard().sites[0].groups.every((group: any) => group.expanded === false))
+assert.throws(
+  () => updateExpandedBulk([siteId, 999_999], true),
+  /包含不存在或未配置的站点/,
+)
+assert.equal(getDashboard().sites[0].expanded, false)
+assert.ok(getDashboard().sites[0].groups.every((group: any) => group.expanded === false))
+updateExpandedBulk([siteId], true)
 
 const edit = await prepareManualSite({
   id: siteId,

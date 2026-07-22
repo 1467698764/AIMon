@@ -78,6 +78,10 @@ export const api = {
   discardDraft: (id: number) => request<void>(`/api/drafts/${id}`, { method: 'DELETE' }),
   expanded: (kind: 'site' | 'group', id: number, expanded: boolean) =>
     request(`/api/sites/${kind}/${id}/expanded`, { method: 'PATCH', body: JSON.stringify({ expanded }) }),
+  expandedBulk: (siteIds: number[], expanded: boolean) =>
+    request<{ ok: true; sites: number; groups: number }>('/api/sites/expanded/bulk', {
+      method: 'PATCH', body: JSON.stringify({ siteIds, expanded }),
+    }),
   reorder: (kind: 'site' | 'group', ids: number[]) =>
     request(`/api/order/${kind}`, { method: 'PUT', body: JSON.stringify({ ids }) }),
   health: (scope: { siteId?: number; groupId?: number; modelId?: number } = {}) =>

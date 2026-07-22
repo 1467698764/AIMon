@@ -488,7 +488,23 @@ export function deleteSite(siteId: number): void {
 
 export function updateExpanded(kind: 'site' | 'group', id: number, expanded: boolean): void {
   const table = kind === 'site' ? 'sites' : 'site_groups'
-  db.prepare(`UPDATE ${table} SET expanded = ? WHERE id = ?`).run(Number(expanded), id)
+  const result = db.prepare(`UPDATE ${table} SET expanded = ? WHERE id = ?`).run(Number(expanded), id)
+  if (!result.changes) throw new Error(kind === 'site' ? '站点不存在' : '分组不存在')
+}
+
+export function updateExpandedBulk(siteIds: number[], expanded: boolean): { sites: number; groups: number } {
+  const uniqueIds = [...new Set(siteIds)]
+  if (!uniqueIds.length) throw new Error('批量展开范围为空')
+  return transaction(() => {
+    const placeholders = uniqueIds.map(() => '?').join(',')
+    const existing = all(`SELECT id FROM sites WHERE configured = 1 AND id IN (${placeholders})`, ...uniqueIds)
+    if (existing.length !== uniqueIds.length) throw new Error('批量展开范围包含不存在或未配置的站点')
+    const sites = Number(db.prepare(`UPDATE sites SET expanded = ? WHERE id IN (${placeholders})`)
+      .run(Number(expanded), ...uniqueIds).changes)
+    const groups = Number(db.prepare(`UPDATE site_groups SET expanded = ? WHERE site_id IN (${placeholders})`)
+      .run(Number(expanded), ...uniqueIds).changes)
+    return { sites, groups }
+  })
 }
 
 export function reorder(kind: 'site' | 'group', ids: number[]): void {

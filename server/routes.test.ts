@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   hasActiveHealthForSite: vi.fn(() => false),
   listJobs: vi.fn(() => []),
   startHealthCheck: vi.fn(() => ({ id: 'job-1', status: 'queued' })),
+  updateExpandedBulk: vi.fn(() => ({ sites: 2, groups: 5 })),
 }))
 
 vi.mock('./site-service.js', () => ({
@@ -24,6 +25,7 @@ vi.mock('./site-service.js', () => ({
   reorder: vi.fn(),
   saveSettings: vi.fn(),
   updateExpanded: vi.fn(),
+  updateExpandedBulk: mocks.updateExpandedBulk,
 }))
 vi.mock('./health.js', () => ({
   hasActiveHealthForSite: mocks.hasActiveHealthForSite,
@@ -44,6 +46,7 @@ afterEach(() => {
   mocks.listJobs.mockReset()
   mocks.listJobs.mockReturnValue([])
   mocks.startHealthCheck.mockClear()
+  mocks.updateExpandedBulk.mockClear()
 })
 
 describe('site configuration route', () => {
@@ -91,6 +94,16 @@ describe('site configuration route', () => {
 })
 
 describe('health and site lifecycle routes', () => {
+  it('updates expansion state through one bulk request', async () => {
+    const response = await request(app)
+      .patch('/api/sites/expanded/bulk')
+      .send({ siteIds: [7, 9], expanded: false })
+      .expect(200)
+
+    expect(mocks.updateExpandedBulk).toHaveBeenCalledWith([7, 9], false)
+    expect(response.body).toEqual({ ok: true, sites: 2, groups: 5 })
+  })
+
   it('returns recent health jobs instead of dropping completion warnings immediately', async () => {
     mocks.listJobs.mockReturnValueOnce([{
       id: 'completed-job',

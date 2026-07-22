@@ -13,6 +13,7 @@ import {
   reorder,
   saveSettings,
   updateExpanded,
+  updateExpandedBulk,
 } from './site-service.js'
 import { hasActiveHealthForSite, listJobs, startHealthCheck } from './health.js'
 import { redactSensitiveText, sensitiveValues } from './privacy.js'
@@ -115,6 +116,13 @@ router.delete('/sites/:id', (req, res) => {
   }
   deleteSite(siteId)
   res.status(204).end()
+})
+router.patch('/sites/expanded/bulk', (req, res) => {
+  const input = z.object({
+    siteIds: z.array(z.number().int().positive()).min(1).max(1_000),
+    expanded: z.boolean(),
+  }).parse(req.body)
+  res.json({ ok: true, ...updateExpandedBulk(input.siteIds, input.expanded) })
 })
 router.patch('/sites/:kind/:id/expanded', (req, res) => {
   const kind = z.enum(['site', 'group']).parse(req.params.kind)
