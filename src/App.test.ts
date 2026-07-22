@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { latencyTone, siteHasVisibleModels } from './App.js'
+import { latencyTone, resolveSiteView, siteHasVisibleModels } from './App.js'
 import type { SiteItem } from './types.js'
 
 describe('latencyTone', () => {
@@ -38,5 +38,14 @@ describe('siteHasVisibleModels', () => {
   it('keeps an empty site visible when its name matches the search', () => {
     expect(siteHasVisibleModels(emptySite, 'fresh', 'all')).toBe(true)
     expect(siteHasVisibleModels(emptySite, 'missing', 'all')).toBe(false)
+  })
+})
+
+describe('resolveSiteView', () => {
+  it('uses focused navigation for large dashboards and keeps an explicit preference', () => {
+    expect(resolveSiteView(6, null)).toBe('all')
+    expect(resolveSiteView(7, null)).toBe('focus')
+    expect(resolveSiteView(30, 'all')).toBe('all')
+    expect(resolveSiteView(2, 'focus')).toBe('focus')
   })
 })

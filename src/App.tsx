@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
-  CircleAlert, GripVertical, Layers3, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, Pencil, Plus,
+  CircleAlert, GripVertical, Layers3, List, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, PanelLeft, Pencil, Plus,
   RefreshCw, Search, Server, Settings as SettingsIcon, Sparkles, Timer, Trash2, X,
 } from 'lucide-react'
 import { api } from './api'
@@ -15,6 +15,11 @@ const statusLabels: Record<HealthStatus, string> = {
 }
 
 type StatusFilter = 'all' | HealthStatus
+type SiteViewMode = 'focus' | 'all'
+
+export function resolveSiteView(siteCount: number, preference: SiteViewMode | null): SiteViewMode {
+  return preference || (siteCount > 6 ? 'focus' : 'all')
+}
 
 function statusCounts(models: ModelItem[]) {
   return {
@@ -589,11 +594,12 @@ function ModelTable({ group, recommended, onHealth, activeTargetFor }: {
   </>
 }
 
-function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
+function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
   site: SiteItem; recommended: boolean; onEdit: () => void; onDelete: () => void;
   deleting: boolean;
   onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onError: (message: string) => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
   query: string; statusFilter: StatusFilter;
+  siteDragEnabled: boolean;
   dragging: { kind: 'site' | 'group'; id: number } | null; setDragging: (value: { kind: 'site' | 'group'; id: number } | null) => void
 }) {
   const [localGroups, setLocalGroups] = useState(site.groups)
@@ -712,10 +718,11 @@ function SitePanel({ site, recommended, query, statusFilter, onEdit, onDelete, d
     finally { groupMutationRef.current = false }
   }
   const siteChecking = isHealthActive({ siteId: site.id })
+  const canDragSite = siteDragEnabled && !recommended && !filtering
   return <article className="site-panel">
     <header className="site-header">
       <div className="site-reorder">
-        <button className="drag-handle" title={filtering ? '筛选时无法排序' : '拖动排序'} draggable={!recommended && !filtering} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging({ kind: 'site', id: site.id }) }} onDragEnd={() => setDragging(null)} disabled={recommended || filtering}><GripVertical size={18} /></button>
+        <button className="drag-handle" title={!siteDragEnabled ? '切换到全部视图后可拖动排序' : filtering ? '筛选时无法排序' : '拖动排序'} draggable={canDragSite} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging({ kind: 'site', id: site.id }) }} onDragEnd={() => setDragging(null)} disabled={!canDragSite}><GripVertical size={18} /></button>
         <button className="collapse" aria-expanded={siteExpanded} onClick={() => void toggleSite()} title={siteExpanded ? '收起站点' : '展开站点'}>{siteExpanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
       </div>
       <div className="site-identity">
@@ -769,6 +776,14 @@ export function App() {
   const [recommended, setRecommended] = useState(false)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [siteViewPreference, setSiteViewPreference] = useState<SiteViewMode | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const stored = window.localStorage.getItem('aimon-site-view')
+      return stored === 'focus' || stored === 'all' ? stored : null
+    } catch { return null }
+  })
+  const [focusedSiteId, setFocusedSiteId] = useState<number | null>(null)
   const [dragging, setDragging] = useState<{ kind: 'site' | 'group'; id: number } | null>(null)
   const [pendingHealthKeys, setPendingHealthKeys] = useState<Set<string>>(new Set())
   const [deletingSiteIds, setDeletingSiteIds] = useState<Set<number>>(new Set())
@@ -783,6 +798,7 @@ export function App() {
   const jobsAbortRef = useRef<AbortController | null>(null)
   const jobsEpochRef = useRef(0)
   const siteReorderRef = useRef(false)
+  const siteWorkspaceRef = useRef<HTMLElement | null>(null)
   const resumeRefreshRef = useRef<() => void>(() => undefined)
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1122,6 +1138,32 @@ export function App() {
   const activeTargetFor = (modelId: number): HealthJobTarget | undefined => activeTargetByModel.get(modelId)
   const visibleSites = dashboard?.sites.filter((site) => siteHasVisibleModels(site, query, statusFilter)) || []
   const filtering = Boolean(query.trim() || statusFilter !== 'all')
+  const siteView = resolveSiteView(dashboard?.sites.length || 0, siteViewPreference)
+  const focusedSite = visibleSites.find((site) => site.id === focusedSiteId) || visibleSites[0]
+  const focusedVisibleIndex = focusedSite ? visibleSites.findIndex((site) => site.id === focusedSite.id) : -1
+  const displayedSites = siteView === 'focus' ? (focusedSite ? [focusedSite] : []) : visibleSites
+  const visibleSiteKey = visibleSites.map((site) => site.id).join(',')
+  useEffect(() => {
+    if (!visibleSites.length) {
+      if (focusedSiteId != null) setFocusedSiteId(null)
+      return
+    }
+    if (!visibleSites.some((site) => site.id === focusedSiteId)) setFocusedSiteId(visibleSites[0].id)
+  }, [visibleSiteKey, focusedSiteId])
+
+  function changeSiteView(mode: SiteViewMode) {
+    setSiteViewPreference(mode)
+    try { window.localStorage.setItem('aimon-site-view', mode) } catch { /* The view still works for this session. */ }
+  }
+
+  function selectFocusedSite(siteId: number, scroll = true) {
+    setFocusedSiteId(siteId)
+    if (!scroll) return
+    window.requestAnimationFrame(() => {
+      const top = (siteWorkspaceRef.current?.getBoundingClientRect().top || 0) + window.scrollY - 74
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    })
+  }
   if (!auth) return <LoadingScreen message="正在检查访问权限" error={authError} onRetry={() => {
     setAuthError('')
     void api.authStatus()
@@ -1162,19 +1204,47 @@ export function App() {
             ] as Array<[StatusFilter, string]>).map(([value, label]) =>
               <button type="button" key={value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>)}
           </div>
+          <div className="view-switch" role="group" aria-label="站点显示方式">
+            <button type="button" className={siteView === 'focus' ? 'active' : ''} onClick={() => changeSiteView('focus')} title="通过固定目录快速切换站点"><PanelLeft size={14} />聚焦</button>
+            <button type="button" className={siteView === 'all' ? 'active' : ''} onClick={() => changeSiteView('all')} title="纵向展示全部站点，可拖动排序"><List size={14} />全部</button>
+          </div>
           {filtering && <span className="filter-result">显示 {visibleSites.length} / {dashboard.sites.length} 个站点</span>}
         </section>
       </section>
       {activeJobs.length > 0 && <div className="job-strip" title={activeLabel} aria-live="polite"><LoaderCircle size={16} className="spin" /><span><strong>{refreshingJobs.length ? '同步中' : `${runningTargets.length} 个运行中`}</strong>{!refreshingJobs.length && <> · <strong>{queuedTargets.length}</strong> 个排队中</>}{currentTargetLabel && <em>{currentTargetLabel}</em>}{refreshWarning && <em className="job-warning">{refreshWarning}</em>}</span><div className="job-progress"><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
       {dashboardError && <div className="page-error"><CircleAlert size={18} /><span>监控数据刷新失败：{dashboardError}</span><button onClick={() => { setDashboardError(''); void loadFresh(false) }}>重试</button></div>}
       {jobsError && <div className="page-error page-warning"><CircleAlert size={18} /><span>任务状态刷新失败：{jobsError}</span><button onClick={() => { setJobsError(''); void loadFresh(true) }}>重试</button></div>}
-      <section className="site-list">
-        {visibleSites.map((site) => {
-          const index = dashboard.sites.findIndex((item) => item.id === site.id)
-          return <div key={site.id} onDragOver={(e) => !recommended && !filtering && e.preventDefault()} onDrop={() => void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
-        })}
-        {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
-        {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}
+      <section ref={siteWorkspaceRef} className={`site-workspace ${siteView === 'focus' && visibleSites.length ? 'focus' : ''}`}>
+        {siteView === 'focus' && visibleSites.length > 0 && <aside className="site-index" aria-label="站点快速导航">
+          <header><div><small>快速导航</small><strong>站点目录</strong></div><span>{focusedVisibleIndex + 1} / {visibleSites.length}</span></header>
+          <div className="site-index-list" role="listbox" aria-label="选择站点">
+            {visibleSites.map((site) => {
+              const models = site.groups.flatMap((group) => group.models)
+              const counts = statusCounts(models)
+              const tone = activeSiteIds.has(site.id) ? 'checking'
+                : counts.failed ? 'failed'
+                : counts.available ? 'available'
+                : counts.excellent ? 'excellent' : 'pending'
+              return <button type="button" role="option" aria-selected={site.id === focusedSite?.id} className={site.id === focusedSite?.id ? 'active' : ''} key={site.id} onClick={() => selectFocusedSite(site.id)}>
+                <i className={`site-index-status ${tone}`} />
+                <span><strong>{site.name}</strong><small>{site.groups.length} 组 · {models.length} 模型</small></span>
+                <HealthBreakdown models={models} />
+              </button>
+            })}
+          </div>
+          <footer>
+            <button type="button" disabled={focusedVisibleIndex <= 0} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex - 1].id)}><ChevronRight className="previous" size={15} />上一站</button>
+            <button type="button" disabled={focusedVisibleIndex < 0 || focusedVisibleIndex >= visibleSites.length - 1} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex + 1].id)}>下一站<ChevronRight size={15} /></button>
+          </footer>
+        </aside>}
+        <section className="site-list">
+          {displayedSites.map((site) => {
+            const index = dashboard.sites.findIndex((item) => item.id === site.id)
+            return <div key={site.id} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
+          })}
+          {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
+          {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}
+        </section>
       </section>
     </main>
     {wizard && <SiteWizard
