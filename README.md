@@ -83,10 +83,11 @@ npm run build
 
 - New API 通过 `/api/status`、`/api/user/login`、`/api/user/self/groups` 与令牌接口接入。
 - Sub2API 通过 `/api/v1/auth/login`、用户分组与 Key 接口接入。
-- 测活优先使用 `/v1/chat/completions` SSE；明确不支持该端点时回退 `/v1/responses`。
+- 测活优先使用 `/v1/chat/completions` SSE；不支持流式时回退非流式 Chat Completions，明确不支持该端点时再回退 `/v1/responses`。
 - 启用了 TOTP/2FA 的远端账号目前无法自动登录，请使用未启用 2FA 的专用监控账号。
 - New API 的分组名同时是分组标识。分组改名后无法百分之百可靠地自动识别；AIMon 只复用能够确定属于同一分组的 Key，无法可靠判定的分组保持未选，避免误绑其他 Key。
 - 站点 Base URL 推荐只填站点根地址（如 `https://api.example.com`）；输入末尾的 `/v1` 或 `/api/v1` 也会自动归一化。
+- 编辑自动登录站点时，同一 Base URL 可沿用已保存密码；Base URL 变化后必须重新填写站点凭据，或明确选择统一默认凭据，避免把旧密码发送到误填的新地址。
 - 手动接入不会登录或同步余额、远端分组名和倍率；再次编辑时只按当前填写内容刷新模型列表。
 - CloakBrowser 会保留每个站点的浏览器上下文并在严格 CF 下使用真实浏览器网络栈。托管 Turnstile 可自动处理；必须人工点击、图片识别或其他交互的验证码不会尝试绕过，失败时界面会提示改用手动 API Key 接入。
 - 使用 `CLOAKBROWSER_PROXY` 时，代理 URL 可能包含凭据，应将 `.env` 作为敏感文件保护。Docker 的 `cloakbrowser-cache` 卷会持久保存已下载浏览器，Pro 授权首次下载仍需服务器能访问外网。

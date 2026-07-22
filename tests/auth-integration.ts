@@ -15,6 +15,9 @@ const { db } = await import('../server/db.js')
 const anonymous = request(app)
 let response = await anonymous.get('/api/auth/status')
 assert.deepEqual(response.body, { configured: false, authenticated: false })
+assert.equal(response.headers['cache-control'], 'no-store')
+assert.match(String(response.headers['content-security-policy']), /default-src 'self'/)
+assert.equal(response.headers['permissions-policy'], 'camera=(), microphone=(), geolocation=()')
 
 response = await anonymous.get('/api/dashboard')
 assert.equal(response.status, 428)
@@ -43,6 +46,18 @@ await session.post('/api/auth/logout').expect(204)
 await session.post('/api/auth/login').send({ password: 'first-password' }).expect(401)
 await session.post('/api/auth/login').send({ password: 'second-password' }).expect(200)
 await session.get('/api/dashboard').expect(200)
+
+const attackerIp = '203.0.113.45'
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  await anonymous.post('/api/auth/login')
+    .set('X-Forwarded-For', attackerIp)
+    .send({ password: 'wrong-password' })
+    .expect(401)
+}
+await anonymous.post('/api/auth/login')
+  .set('X-Forwarded-For', attackerIp)
+  .send({ password: 'second-password' })
+  .expect(429)
 
 db.close()
 fs.rmSync(dataDir, { recursive: true, force: true })

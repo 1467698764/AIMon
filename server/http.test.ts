@@ -15,6 +15,10 @@ describe('HTTP helpers', () => {
     expect(() => normalizeBaseUrl('file:///tmp/key')).toThrow('HTTP')
   })
 
+  it('rejects credentials embedded in a Base URL', () => {
+    expect(() => normalizeBaseUrl('https://user:secret@example.com')).toThrow('username or password')
+  })
+
   it('builds compatible New API authentication headers', () => {
     expect(authHeaders({ accessToken: 'token', cookie: 'session=1', userId: '7' })).toMatchObject({
       Authorization: 'Bearer token', Cookie: 'session=1', 'New-Api-User': '7',
@@ -69,5 +73,16 @@ describe('HTTP helpers', () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
     const response = await remoteFetch('https://example.com', '/slow', {}, 20)
     await expect(response.text()).rejects.toThrow('timed out')
+  })
+
+  it('stops oversized remote responses before they can consume unbounded memory', async () => {
+    const oversized = new Uint8Array(8 * 1024 * 1024 + 1)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(oversized, {
+      status: 200,
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })))
+
+    const response = await remoteFetch('https://example.com', '/oversized')
+    await expect(response.arrayBuffer()).rejects.toThrow('8 MiB')
   })
 })

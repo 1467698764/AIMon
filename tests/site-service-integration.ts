@@ -9,6 +9,7 @@ const { db } = await import('../server/db.js')
 const {
   configureSite,
   deleteSite,
+  discoverSite,
   discardDraft,
   getDashboard,
   getHealthTargets,
@@ -131,6 +132,117 @@ autoGroup = db.prepare('SELECT ratio FROM site_groups WHERE id = ?').get(autoGro
 assert.equal(autoSite.balance, 12.5)
 assert.equal(autoGroup.ratio, 2)
 assert.equal(getDashboard().settings.healthAttempts, 4)
+
+const defaultCredentialDraft = await discoverSite({
+  id: autoSiteId,
+  name: 'Auto relay',
+  baseUrl: 'https://auto.example',
+  useDefaultCredentials: true,
+  rechargeRatio: 2,
+})
+const storedDraftCredentials = db.prepare(
+  'SELECT username_enc, password_enc FROM site_drafts WHERE id = ?',
+).get(defaultCredentialDraft.draftId) as Record<string, any>
+assert.equal(storedDraftCredentials.username_enc, null)
+assert.equal(storedDraftCredentials.password_enc, null)
+discardDraft(defaultCredentialDraft.draftId)
+
+await assert.rejects(
+  discoverSite({
+    id: autoSiteId,
+    name: 'Moved relay',
+    baseUrl: 'https://different-origin.example',
+    username: 'monitor',
+    useDefaultCredentials: false,
+  }),
+  /Base URL 已变化/,
+)
+
+let releaseSnapshot!: () => void
+let snapshotStarted!: () => void
+const snapshotGate = new Promise<void>((resolve) => { releaseSnapshot = resolve })
+const snapshotStartedGate = new Promise<void>((resolve) => { snapshotStarted = resolve })
+globalThis.fetch = async (input) => {
+  const url = String(input)
+  if (url.endsWith('/api/user/login')) {
+    return new Response(JSON.stringify({ success: true, data: { access_token: 'session', user: { id: 9 } } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  if (url.endsWith('/api/status')) {
+    return new Response(JSON.stringify({ success: true, data: { quota_per_unit: 500_000 } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  if (url.endsWith('/api/user/self')) {
+    return new Response(JSON.stringify({ success: true, data: { quota: 99_000_000 } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  if (url.endsWith('/api/user/self/groups')) {
+    snapshotStarted()
+    await snapshotGate
+    return new Response(JSON.stringify({ success: true, data: { default: { ratio: 99 } } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  throw new Error(`unexpected concurrent metadata URL: ${url}`)
+}
+
+const staleRefresh = refreshHealthMetadata({ siteId: autoSiteId })
+await snapshotStartedGate
+db.prepare('UPDATE sites SET config_revision = config_revision + 1, balance = 44 WHERE id = ?').run(autoSiteId)
+db.prepare('UPDATE site_groups SET ratio = 4 WHERE id = ?').run(autoGroupId)
+releaseSnapshot()
+const staleWarnings = await staleRefresh
+autoSite = db.prepare('SELECT balance FROM sites WHERE id = ?').get(autoSiteId) as Record<string, any>
+autoGroup = db.prepare('SELECT ratio FROM site_groups WHERE id = ?').get(autoGroupId) as Record<string, any>
+assert.equal(autoSite.balance, 44)
+assert.equal(autoGroup.ratio, 4)
+assert.match(staleWarnings.join('；'), /配置已变化/)
+
+const modelId = Number(db.prepare(`
+  INSERT INTO models (group_id, name, selected, sort_order)
+  VALUES (?, 'corrupted-history-model', 1, 0)
+`).run(autoGroupId).lastInsertRowid)
+db.prepare(`
+  INSERT INTO health_checks (model_id, checked_at, success_count, attempt_count, config_revision, status, attempts_json)
+  VALUES (?, ?, 0, 3, 1, 'failed', 'not-json')
+`).run(modelId, new Date().toISOString())
+const damagedModel = getDashboard().sites[0].groups[0].models
+  .find((model: any) => model.id === modelId)
+assert.deepEqual(damagedModel.attempts, [])
+
+globalThis.fetch = async (input) => {
+  const url = String(input)
+  if (url.endsWith('/v1/models')) {
+    return new Response(JSON.stringify({
+      object: 'list',
+      data: [{ id: 'gpt-4o-mini', supported_endpoint_types: ['openai'] }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  throw new Error(`unexpected stale draft URL: ${url}`)
+}
+const staleDraft = await prepareManualSite({
+  id: autoSiteId,
+  name: 'Auto relay manual edit',
+  baseUrl: 'https://auto.example',
+  rechargeRatio: 2,
+  groups: [{ id: autoGroupId, name: 'default', ratio: 4, apiKey: 'sk-stale-draft' }],
+})
+db.prepare('UPDATE sites SET config_revision = config_revision + 1 WHERE id = ?').run(autoSiteId)
+assert.throws(
+  () => configureSite(staleDraft.draftId, staleDraft.groups.map((group) => ({
+    groupId: group.id,
+    modelIds: group.models.map((model) => model.id),
+  }))),
+  /其他页面发生变化/,
+)
+discardDraft(staleDraft.draftId)
 
 deleteSite(autoSiteId)
 console.log('site service integration test passed')

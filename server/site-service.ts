@@ -15,6 +15,7 @@ export interface DiscoverInput {
   baseUrl: string
   username?: string
   password?: string
+  useDefaultCredentials?: boolean
   rechargeRatio?: number
 }
 
@@ -54,12 +55,25 @@ function defaultCredentials(): Credentials {
   return { username: decrypt(row?.username_enc), password: decrypt(row?.password_enc) }
 }
 
-function effectiveCredentials(site: Row | undefined, input?: { username?: string; password?: string }): Credentials {
+function effectiveCredentials(
+  site: Row | undefined,
+  input?: { username?: string; password?: string; useDefaultCredentials?: boolean },
+  requireExplicit = false,
+): Credentials {
   const defaults = defaultCredentials()
+  if (input?.useDefaultCredentials === true) {
+    if (!defaults.username || !defaults.password) {
+      throw new Error('默认登录凭据尚未完整配置，请先在默认配置中填写账号和密码')
+    }
+    return defaults
+  }
   const storedUsername = site ? decrypt(site.username_enc) : ''
   const storedPassword = site ? decrypt(site.password_enc) : ''
   const username = input?.username !== undefined ? input.username.trim() : storedUsername
   const password = input?.password !== undefined ? input.password : storedPassword
+  if (requireExplicit && input?.useDefaultCredentials === false && (!username || !password)) {
+    throw new Error('Base URL 已变化，请重新填写该站点的登录账号和密码，或改用默认登录凭据')
+  }
   const resolved = {
     username: username || defaults.username,
     password: password || defaults.password,
@@ -76,9 +90,20 @@ export async function discoverSite(input: DiscoverInput & { draftId?: number }) 
     ? one('SELECT * FROM sites WHERE id = ?', input.id)
     : undefined
   if (input.id && !existing) throw new Error('站点不存在')
-  const credentials = effectiveCredentials(existing, input)
+  const sameOrigin = Boolean(existing && normalizeBaseUrl(existing.base_url) === baseUrl)
+  const credentials = effectiveCredentials(sameOrigin ? existing : undefined, input, !sameOrigin)
   const snapshot = await detectAndLoad(baseUrl, credentials)
   const rechargeRatio = Math.max(0.000001, Number(input.rechargeRatio || existing?.recharge_ratio || 1))
+  const usernameEnc = input.useDefaultCredentials === true
+    ? null
+    : input.username !== undefined
+      ? encrypt(input.username.trim())
+      : sameOrigin ? existing?.username_enc : null
+  const passwordEnc = input.useDefaultCredentials === true
+    ? null
+    : input.password !== undefined
+      ? encrypt(input.password)
+      : sameOrigin ? existing?.password_enc : null
 
   const draftId = transaction(() => {
     if (input.draftId) {
@@ -91,16 +116,15 @@ export async function discoverSite(input: DiscoverInput & { draftId?: number }) 
     const stamp = nowIso()
     const result = db.prepare(`
       INSERT INTO site_drafts
-        (site_id, name, base_url, type, username_enc, password_enc, balance, currency, recharge_ratio, connection_mode, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?)
+        (site_id, name, base_url, type, username_enc, password_enc, balance, currency, recharge_ratio,
+         connection_mode, site_config_revision, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?)
     `).run(
       existing?.id || null, input.name.trim(), baseUrl, snapshot.type,
-      input.username !== undefined ? encrypt(input.username.trim()) : existing?.username_enc,
-      input.password !== undefined ? encrypt(input.password) : existing?.password_enc,
-      snapshot.balance, snapshot.currency, rechargeRatio, stamp, stamp,
+      usernameEnc, passwordEnc,
+      snapshot.balance, snapshot.currency, rechargeRatio, Number(existing?.config_revision || 0), stamp, stamp,
     )
     const id = Number(result.lastInsertRowid)
-    const sameOrigin = Boolean(existing && normalizeBaseUrl(existing.base_url) === baseUrl)
     const sourceGroups = (sameOrigin
       ? all('SELECT * FROM site_groups WHERE site_id = ? ORDER BY sort_order, id', existing!.id)
       : []) as Array<Row & StoredGroupIdentity>
@@ -189,6 +213,12 @@ function draftCredentials(draft: Row): Credentials {
 export async function prepareGroups(draftId: number, groupIds: number[]) {
   const draft = one('SELECT * FROM site_drafts WHERE id = ?', draftId)
   if (!draft?.type) throw new Error('配置草稿不存在或尚未完成识别')
+  if (draft.site_id) {
+    const current = one('SELECT config_revision FROM sites WHERE id = ?', draft.site_id)
+    if (!current || Number(current.config_revision) !== Number(draft.site_config_revision)) {
+      throw new Error('站点配置已在其他页面发生变化，请关闭当前弹窗后重新编辑')
+    }
+  }
   const adapter = getAdapter(draft.type)
   const auth = await adapter.login(draft.base_url, draftCredentials(draft))
   const groups = all(`
@@ -286,9 +316,11 @@ export async function prepareManualSite(input: DiscoverInput & { draftId?: numbe
     const stamp = nowIso()
     const result = db.prepare(`
       INSERT INTO site_drafts
-        (site_id, name, base_url, type, balance, currency, recharge_ratio, connection_mode, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 0, 'USD', ?, 'manual', ?, ?)
-    `).run(existing?.id || null, input.name.trim(), baseUrl, existing?.type || 'newapi', rechargeRatio, stamp, stamp)
+        (site_id, name, base_url, type, balance, currency, recharge_ratio, connection_mode,
+         site_config_revision, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 0, 'USD', ?, 'manual', ?, ?, ?)
+    `).run(existing?.id || null, input.name.trim(), baseUrl, existing?.type || 'newapi', rechargeRatio,
+      Number(existing?.config_revision || 0), stamp, stamp)
     const id = Number(result.lastInsertRowid)
     for (const item of loaded) {
       const groupResult = db.prepare(`
@@ -326,6 +358,12 @@ export function configureSite(draftId: number, selections: Array<{ groupId: numb
   return transaction(() => {
     const draft = one('SELECT * FROM site_drafts WHERE id = ?', draftId)
     if (!draft) throw new Error('配置草稿不存在或已过期')
+    const duplicateSite = one(
+      'SELECT id, name FROM sites WHERE base_url = ? AND id <> ?',
+      draft.base_url,
+      Number(draft.site_id || 0),
+    )
+    if (duplicateSite) throw new Error(`Base URL 已被站点“${duplicateSite.name}”使用`)
     const selectedGroupIds = new Set(selections.map((item) => item.groupId))
     const draftGroups = all('SELECT * FROM draft_groups WHERE draft_id = ? ORDER BY sort_order, id', draftId)
     if (selections.some((selection) => !draftGroups.some((group) => group.id === selection.groupId))) {
@@ -333,8 +371,11 @@ export function configureSite(draftId: number, selections: Array<{ groupId: numb
     }
     let siteId = Number(draft.site_id || 0)
     if (siteId) {
-      const formal = one('SELECT base_url FROM sites WHERE id = ?', siteId)
+      const formal = one('SELECT base_url, config_revision FROM sites WHERE id = ?', siteId)
       if (!formal) throw new Error('原站点已不存在')
+      if (Number(formal.config_revision) !== Number(draft.site_config_revision)) {
+        throw new Error('站点配置已在其他页面发生变化，请关闭当前弹窗后重新编辑')
+      }
       if (normalizeBaseUrl(formal.base_url) !== normalizeBaseUrl(draft.base_url)) {
         db.prepare('DELETE FROM site_groups WHERE site_id = ?').run(siteId)
       }
@@ -580,7 +621,14 @@ export function getDashboard() {
         ORDER BY m.sort_order, m.id
       `, site.config_revision, group.id).map((model) => {
         const { attemptsJson, ...visible } = model
-        return { ...visible, attempts: attemptsJson ? JSON.parse(attemptsJson) : [] }
+        let attempts: unknown[] = []
+        if (attemptsJson) {
+          try {
+            const parsed = JSON.parse(attemptsJson)
+            if (Array.isArray(parsed)) attempts = parsed
+          } catch { /* Keep a damaged historical row from breaking the dashboard. */ }
+        }
+        return { ...visible, attempts }
       })
       return {
         id: group.id,

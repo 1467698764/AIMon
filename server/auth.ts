@@ -5,7 +5,8 @@ import { config } from './config.js'
 
 const cookieName = 'aimon_session'
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000
-const failures = new Map<string, { count: number; blockedUntil: number }>()
+const failureWindowMs = 15 * 60 * 1000
+const failures = new Map<string, { count: number; blockedUntil: number; lastFailureAt: number }>()
 
 export class AuthError extends Error {
   constructor(message: string, public readonly status = 401) {
@@ -110,6 +111,10 @@ function rateKey(request: Request): string {
 }
 
 function assertRateLimit(request: Request): void {
+  const now = Date.now()
+  for (const [key, state] of failures) {
+    if (state.blockedUntil <= now && now - state.lastFailureAt >= failureWindowMs) failures.delete(key)
+  }
   const state = failures.get(rateKey(request))
   if (state?.blockedUntil && state.blockedUntil > Date.now()) {
     throw new AuthError('登录失败次数过多，请 15 分钟后重试', 429)
@@ -118,11 +123,16 @@ function assertRateLimit(request: Request): void {
 
 function recordFailure(request: Request): void {
   const key = rateKey(request)
-  const current = failures.get(key) || { count: 0, blockedUntil: 0 }
+  const now = Date.now()
+  const stored = failures.get(key)
+  const current = stored && now - stored.lastFailureAt < failureWindowMs
+    ? stored
+    : { count: 0, blockedUntil: 0, lastFailureAt: now }
   current.count += 1
+  current.lastFailureAt = now
   if (current.count >= 5) {
     current.count = 0
-    current.blockedUntil = Date.now() + 15 * 60_000
+    current.blockedUntil = now + failureWindowMs
   }
   failures.set(key, current)
 }

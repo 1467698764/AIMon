@@ -49,7 +49,7 @@ vi.mock('./db.js', () => ({
   },
 }))
 
-import { listJobs, startHealthCheck } from './health.js'
+import { hasActiveHealthForSite, listJobs, startHealthCheck } from './health.js'
 
 const siteId = 11
 const groupId = 21
@@ -181,5 +181,61 @@ describe('health job runtime state', () => {
     releaseRefresh()
     await waitForJob(job.id)
     expect(job.phase).toBe('checking')
+  })
+
+  it('falls back to a non-streaming chat request when streaming is unsupported', async () => {
+    mocks.healthAttempts = 1
+    mocks.getHealthTargets.mockReturnValue([target(firstModelId, 'model-no-stream')])
+    mocks.remoteFetch
+      .mockResolvedValueOnce(new Response('{"error":{"message":"streaming is not supported"}}', {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response('{"choices":[{"message":{"content":"OK"}}]}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+
+    const job = startHealthCheck({ modelId: firstModelId })
+    await waitForJob(job.id)
+
+    const check = mocks.insertedChecks.find((row) => row.modelId === firstModelId)!
+    expect(mocks.remoteFetch).toHaveBeenCalledTimes(2)
+    expect(mocks.completedStatuses.get(check.id)).toBe('excellent')
+    expect(mocks.completedAttempts.get(check.id)?.[0]).toMatchObject({ ok: true })
+  })
+
+  it('never prunes a slow active job while many newer jobs complete', async () => {
+    mocks.healthAttempts = 1
+    let releaseSlow!: () => void
+    const slowGate = new Promise<void>((resolve) => { releaseSlow = resolve })
+    let firstRequest = true
+    mocks.remoteFetch.mockImplementation(async () => {
+      if (firstRequest) {
+        firstRequest = false
+        await slowGate
+      }
+      return successResponse()
+    })
+
+    mocks.getHealthTargets.mockReturnValueOnce([target(10_000, 'slow-model')])
+    const slowJob = startHealthCheck({ modelId: 10_000 })
+    await vi.waitFor(() => expect(slowJob.targets[0].status).toBe('running'))
+
+    const quickJobs = []
+    for (let index = 0; index < 55; index += 1) {
+      const modelId = 20_000 + index
+      mocks.getHealthTargets.mockReturnValueOnce([target(modelId, `quick-${index}`)])
+      quickJobs.push(startHealthCheck({ modelId }))
+    }
+    await vi.waitFor(() => {
+      expect(quickJobs.every((job) => job.status === 'completed')).toBe(true)
+    }, { timeout: 5_000 })
+
+    expect(hasActiveHealthForSite(siteId)).toBe(true)
+    expect(listJobs().find((job) => job.id === slowJob.id)?.status).toBe('running')
+
+    releaseSlow()
+    await waitForJob(slowJob.id)
   })
 })

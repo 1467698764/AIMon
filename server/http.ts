@@ -27,6 +27,7 @@ export function normalizeBaseUrl(raw: string): string {
   const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`
   const parsed = new URL(withProtocol)
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Base URL only supports HTTP or HTTPS')
+  if (parsed.username || parsed.password) throw new Error('Base URL must not contain embedded username or password')
   parsed.hash = ''
   parsed.search = ''
   parsed.pathname = parsed.pathname.replace(/\/(api\/)?v1\/?$/i, '').replace(/\/+$/, '')
@@ -50,6 +51,8 @@ interface ActiveRequest {
   controller: AbortController
   timer: NodeJS.Timeout
 }
+
+const maxResponseBytes = 8 * 1024 * 1024
 
 class OriginSemaphore {
   private active = 0
@@ -118,6 +121,7 @@ function responseWithBodyDeadline(active: ActiveRequest, timeoutMs: number): Res
     return active.response
   }
   const reader = active.response.body.getReader()
+  let bytesRead = 0
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -126,6 +130,14 @@ function responseWithBodyDeadline(active: ActiveRequest, timeoutMs: number): Res
           clearTimeout(active.timer)
           controller.close()
         } else {
+          bytesRead += result.value.byteLength
+          if (bytesRead > maxResponseBytes) {
+            clearTimeout(active.timer)
+            active.controller.abort()
+            await reader.cancel().catch(() => undefined)
+            controller.error(new RemoteError('The remote response exceeded the 8 MiB safety limit'))
+            return
+          }
           controller.enqueue(result.value)
         }
       } catch (error) {

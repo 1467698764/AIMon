@@ -15,6 +15,19 @@ app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'same-origin')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ].join('; '))
   next()
 })
 if (config.basicAuthUser || config.basicAuthPassword) {
@@ -33,13 +46,36 @@ if (config.basicAuthUser || config.basicAuthPassword) {
   })
 }
 app.use(express.json({ limit: '1mb' }))
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Pragma', 'no-cache')
+  next()
+})
 app.use('/api/auth', authRoutes)
 app.use('/api', requireAppAuth, routes)
 
 if (config.isProduction) {
   const dist = path.resolve('dist')
-  app.use(express.static(dist, { maxAge: '1h', index: false }))
-  app.get('*splat', (_req, res) => res.sendFile(path.join(dist, 'index.html')))
+  app.use(express.static(dist, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (path.basename(filePath) === 'index.html') {
+        res.setHeader('Cache-Control', 'no-store')
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      } else {
+        res.setHeader('Cache-Control', 'no-cache')
+      }
+    },
+  }))
+  app.get('*splat', (req, res) => {
+    if (req.path.startsWith('/assets/')) {
+      res.status(404).end()
+      return
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    res.sendFile(path.join(dist, 'index.html'))
+  })
 }
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {

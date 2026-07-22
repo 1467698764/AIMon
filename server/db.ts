@@ -98,6 +98,7 @@ db.exec(`
     currency TEXT NOT NULL DEFAULT 'USD',
     recharge_ratio REAL NOT NULL DEFAULT 1,
     connection_mode TEXT NOT NULL DEFAULT 'auto' CHECK (connection_mode IN ('auto', 'manual')),
+    site_config_revision INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -156,6 +157,7 @@ for (const statement of [
   `ALTER TABLE draft_models ADD COLUMN endpoint_types_json TEXT NOT NULL DEFAULT '[]'`,
   `ALTER TABLE sites ADD COLUMN connection_mode TEXT NOT NULL DEFAULT 'auto'`,
   `ALTER TABLE site_drafts ADD COLUMN connection_mode TEXT NOT NULL DEFAULT 'auto'`,
+  `ALTER TABLE site_drafts ADD COLUMN site_config_revision INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE sites ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
   `ALTER TABLE health_checks ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
 ]) {
@@ -165,6 +167,13 @@ for (const statement of [
     if (!(error instanceof Error) || !error.message.includes('duplicate column name')) throw error
   }
 }
+
+// Drafts can contain encrypted credentials and API keys. Remove abandoned
+// drafts after a day so interrupted browser sessions do not retain them forever.
+db.prepare(`
+  DELETE FROM site_drafts
+  WHERE julianday(updated_at) < julianday('now', '-1 day')
+`).run()
 
 export function transaction<T>(fn: () => T): T {
   db.exec('BEGIN IMMEDIATE')

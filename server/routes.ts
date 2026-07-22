@@ -14,7 +14,7 @@ import {
   saveSettings,
   updateExpanded,
 } from './site-service.js'
-import { listActiveJobs, startHealthCheck } from './health.js'
+import { hasActiveHealthForSite, listJobs, startHealthCheck } from './health.js'
 
 const router = Router()
 
@@ -42,6 +42,7 @@ router.post('/sites/discover', asyncHandler(async (req, res) => {
     baseUrl: z.string().trim().min(1).max(500),
     username: z.string().max(200).optional(),
     password: z.string().max(500).optional(),
+    useDefaultCredentials: z.boolean().optional(),
     rechargeRatio: z.number().positive().max(1_000_000).optional(),
   }).parse(req.body)
   res.json(await discoverSite(input))
@@ -105,7 +106,12 @@ router.delete('/drafts/:id', (req, res) => {
   res.status(204).end()
 })
 router.delete('/sites/:id', (req, res) => {
-  deleteSite(Number(req.params.id))
+  const siteId = Number(req.params.id)
+  if (hasActiveHealthForSite(siteId)) {
+    res.status(409).json({ error: '该站点正在测活，请等待任务完成后再删除' })
+    return
+  }
+  deleteSite(siteId)
   res.status(204).end()
 })
 router.patch('/sites/:kind/:id/expanded', (req, res) => {
@@ -131,6 +137,6 @@ router.post('/health/run', (req, res) => {
   }).parse(req.body || {})
   res.status(202).json(startHealthCheck(scope))
 })
-router.get('/health/jobs', (_req, res) => res.json(listActiveJobs()))
+router.get('/health/jobs', (_req, res) => res.json(listJobs()))
 
 export default router

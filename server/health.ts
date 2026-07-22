@@ -53,6 +53,10 @@ class Semaphore {
       this.waiting.shift()?.()
     }
   }
+
+  get idle(): boolean {
+    return this.active === 0 && this.waiting.length === 0
+  }
 }
 
 const jobs = new Map<string, HealthJob>()
@@ -68,6 +72,15 @@ function getSiteSemaphore(siteId: number): Semaphore {
     siteSemaphores.set(siteId, semaphore)
   }
   return semaphore
+}
+
+async function runForSite<T>(siteId: number, task: () => Promise<T>): Promise<T> {
+  const semaphore = getSiteSemaphore(siteId)
+  try {
+    return await semaphore.run(task)
+  } finally {
+    if (semaphore.idle && siteSemaphores.get(siteId) === semaphore) siteSemaphores.delete(siteId)
+  }
 }
 
 function average(values: Array<number | null>): number | null {
@@ -139,6 +152,7 @@ async function streamingAttempt(
         scanBuffer += chunk
         const lines = scanBuffer.split(/\r?\n/)
         scanBuffer = lines.pop() || ''
+        if (scanBuffer.length > 32_768) scanBuffer = scanBuffer.slice(-32_768)
         if (firstToken == null && sseLinesContainGeneratedText(lines)) firstToken = elapsed
       }
       const tail = decoder.decode()
@@ -316,15 +330,25 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
     model,
     messages: [{ role: 'user', content: 'Reply with OK.' }],
     stream: true,
-    max_tokens: 16,
   })
   if (chat.ok) {
     const { responseBody: _, ...result } = chat
     return result
   }
+  const chatDiagnostic = `${chat.error || ''} ${chat.responseBody || ''}`
+  const canRetryWithoutStreaming = [400, 405, 415, 422].includes(chat.httpStatus || 0)
+    && /stream|streaming|text\/event-stream/i.test(chatDiagnostic)
+  if (canRetryWithoutStreaming) {
+    const nonStreaming = await jsonAttempt(baseUrl, key, '/v1/chat/completions', {
+      model,
+      messages: [{ role: 'user', content: 'Reply with OK.' }],
+      stream: false,
+    }, (body) => hasGeneratedText(body))
+    if (nonStreaming.ok) return nonStreaming
+  }
   const canFallback = [404, 405].includes(chat.httpStatus || 0)
     || ([400, 422].includes(chat.httpStatus || 0)
-      && /responses|not supported|unsupported|chat.?completions|endpoint/i.test(`${chat.error || ''} ${chat.responseBody || ''}`))
+      && /responses|not supported|unsupported|chat.?completions|endpoint/i.test(chatDiagnostic))
   if (!canFallback) {
     const { responseBody: _, ...result } = chat
     return result
@@ -401,7 +425,7 @@ function runModelOnce(
   const existing = activeModels.get(signature)
   if (existing) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
-  const task = () => getSiteSemaphore(target.site_id).run(async () => {
+  const task = () => runForSite(Number(target.site_id), async () => {
     onStart?.()
     await runTarget(target, checkId, attemptCount, onAttempt)
   })
@@ -567,6 +591,17 @@ async function executeHealthJob(
     } catch (error) {
       job.status = 'failed'
       job.error = error instanceof Error ? error.message : String(error)
+      const failure = JSON.stringify([{ ok: false, error: job.error }])
+      for (const [index, checkId] of checkIds.entries()) {
+        db.prepare(`
+          UPDATE health_checks SET checked_at = ?, status = 'failed', attempts_json = ?
+          WHERE id = ? AND status = 'pending'
+        `).run(nowIso(), failure, checkId)
+        if (job.targets[index]?.status === 'queued' || job.targets[index]?.status === 'running') {
+          job.targets[index].status = 'failed'
+        }
+      }
+      job.completed = job.total
     } finally {
       for (const target of targets) {
         const activityKey = targetActivityKey(target)
@@ -580,18 +615,34 @@ async function executeHealthJob(
 }
 
 function pruneJobs(): void {
-  const ordered = [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  for (const job of ordered.slice(50)) jobs.delete(job.id)
+  const completed = [...jobs.values()]
+    .filter((job) => job.status !== 'queued' && job.status !== 'running')
+    .sort((a, b) => (b.finishedAt || b.createdAt).localeCompare(a.finishedAt || a.createdAt))
+  for (const job of completed.slice(50)) jobs.delete(job.id)
 }
 
 export function listJobs(): HealthJob[] {
-  return [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20)
+  const active = [...jobs.values()]
+    .filter((job) => job.status === 'queued' || job.status === 'running')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const recent = [...jobs.values()]
+    .filter((job) => job.status !== 'queued' && job.status !== 'running')
+    .sort((a, b) => (b.finishedAt || b.createdAt).localeCompare(a.finishedAt || a.createdAt))
+    .slice(0, 20)
+  return [...active, ...recent]
 }
 
 export function listActiveJobs(): HealthJob[] {
   return [...jobs.values()]
     .filter((job) => job.status === 'queued' || job.status === 'running')
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function hasActiveHealthForSite(siteId: number): boolean {
+  return [...jobs.values()].some((job) => (
+    (job.status === 'queued' || job.status === 'running')
+    && job.targets.some((target) => target.siteId === siteId)
+  ))
 }
 
 export function startAutoHealthScheduler(): NodeJS.Timeout {
