@@ -742,7 +742,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
       </div>
       <div className="site-identity">
         <div className="site-mark"><Server size={18} /></div>
-        <div><small className="layer-kicker">站点</small><div className="site-name-line"><h2>{site.name}</h2><span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>{site.connectionMode === 'manual' ? '手动接入' : site.type === 'newapi' ? 'New API' : 'Sub2API'}</span></div><a href={site.baseUrl} target="_blank" rel="noreferrer">{site.baseUrl}</a></div>
+        <div><small className="layer-kicker">站点</small><div className="site-name-line"><h2 title={site.name}>{site.name}</h2><span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>{site.connectionMode === 'manual' ? '手动接入' : site.type === 'newapi' ? 'New API' : 'Sub2API'}</span></div><a href={site.baseUrl} target="_blank" rel="noreferrer">{site.baseUrl}</a></div>
       </div>
       <div className="site-facts">
         <div><small>账户余额</small><strong>{site.balanceKnown ? fmtCurrency(site.balance, site.currency) : '--'}</strong></div>
@@ -760,7 +760,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
           <div className="group-leading">
             <button className="drag-handle" title={filtering ? '筛选时无法排序' : '拖动排序'} draggable={!recommended && !filtering} onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDragging({ kind: 'group', id: group.id }) }} onDragEnd={() => setDragging(null)} disabled={recommended || filtering}><GripVertical size={16} /></button>
             <button className="collapse" aria-expanded={group.expanded} onClick={() => void toggleGroup(group)} title={group.expanded ? '收起分组' : '展开分组'}>{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
-            <div className="group-title"><Layers3 size={14} /><div><small className="layer-kicker">分组</small><div><h3>{group.name}</h3>{group.platform && <span title={group.platform}>{group.platform}</span>}</div></div></div>
+            <div className="group-title"><Layers3 size={14} /><div><small className="layer-kicker">分组</small><div><h3 title={group.name}>{group.name}</h3>{group.platform && <span title={group.platform}>{group.platform}</span>}</div></div></div>
           </div>
           <div className="group-meta">
             <span>分组倍率 <b>{group.ratioDynamic ? '自动' : `x${group.ratio}`}</b></span>
