@@ -277,11 +277,38 @@ a { color: inherit; }
 .site-list > div + div { margin-top: 24px; }
 .site-panel {
   overflow: hidden;
+  overflow: clip;
   border: 1px solid #ccd7d6;
   border-left: 4px solid #294f57;
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(28,48,52,.065);
+}
+.focus-action-dock {
+  position: fixed;
+  z-index: 24;
+  left: max(20px, calc((100vw - 1480px) / 2 + 24px));
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #b9c8d8;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(25,45,76,.2);
+}
+.focus-action-dock button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; padding: 0 12px; color: #536075; background: #fff; font-size: 12px; font-weight: 780; }
+.focus-action-dock button + button { border-left: 1px solid #dde4eb; }
+.focus-action-dock button:hover:not(:disabled) { color: #174cae; background: #edf3ff; }
+.focus-action-dock button:first-child { color: #26364d; background: #f5f7fa; }
+.site-workspace:not(.focus) .site-header { border-bottom: 1px solid #e0e6ec; }
+@media (min-width: 901px) {
+  .site-workspace:not(.focus) .site-header {
+    position: sticky;
+    top: 60px;
+    z-index: 9;
+    box-shadow: 0 7px 18px rgba(24,39,62,.09);
+  }
 }
 .site-workspace.focus .site-header { grid-template-columns: auto minmax(240px,1fr) auto; }
 .site-workspace.focus .site-facts { grid-column: 2; grid-row: 2; grid-template-columns: 104px 132px 118px 132px; }
@@ -765,6 +792,8 @@ a { color: inherit; }
   .summary-strip > div:nth-child(6) { border-top: 1px solid #e6eaf0; border-left: 1px solid #e6eaf0; }
   .summary-strip svg { width: 30px; height: 30px; padding: 7px; }
   .filter-bar { padding: 9px; }
+  .focus-action-dock { right: 12px; bottom: 12px; left: 12px; }
+  .focus-action-dock button { min-width: 0; min-height: 44px; flex: 1; padding-inline: 6px; font-size: 11px; }
   .site-index { top: 64px; }
   .site-index > header { display: none; }
   .site-index-list > button { width: 180px; min-width: 180px; }

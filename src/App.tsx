@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
-  CircleAlert, GripVertical, Layers3, List, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, PanelLeft, Pencil, Plus,
+  ChevronsDown, ChevronsUp, CircleAlert, GripVertical, Layers3, List, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, PanelLeft, Pencil, Plus,
   RefreshCw, Search, Server, Settings as SettingsIcon, Sparkles, Timer, Trash2, X,
 } from 'lucide-react'
 import { api } from './api'
@@ -594,16 +594,21 @@ function ModelTable({ group, recommended, onHealth, activeTargetFor }: {
   </>
 }
 
-function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
+function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, focusedView, onFocus, onShowAll, onKeepPosition, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
   site: SiteItem; recommended: boolean; onEdit: () => void; onDelete: () => void;
   deleting: boolean;
   onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onError: (message: string) => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
   query: string; statusFilter: StatusFilter;
   siteDragEnabled: boolean;
+  focusedView: boolean;
+  onFocus?: () => void;
+  onShowAll: () => void;
+  onKeepPosition: () => void;
   dragging: { kind: 'site' | 'group'; id: number } | null; setDragging: (value: { kind: 'site' | 'group'; id: number } | null) => void
 }) {
   const [localGroups, setLocalGroups] = useState(site.groups)
-  const [siteExpanded, setSiteExpanded] = useState(site.expanded)
+  const [siteExpanded, setSiteExpanded] = useState(focusedView || site.expanded)
+  const [bulkToggling, setBulkToggling] = useState(false)
   const groupMutationRef = useRef(false)
   const siteToggleRef = useRef(false)
   const siteExpandedOverrideRef = useRef<boolean | null>(null)
@@ -624,7 +629,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, on
   useEffect(() => {
     const desired = siteExpandedOverrideRef.current
     if (desired == null) {
-      setSiteExpanded(site.expanded)
+      if (!focusedView || site.expanded) setSiteExpanded(site.expanded)
       return
     }
     if (site.expanded === desired) {
@@ -717,9 +722,36 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, on
     }
     finally { groupMutationRef.current = false }
   }
+  async function setAllExpanded(expanded: boolean) {
+    if (bulkToggling) return
+    const previousSiteExpanded = siteExpanded
+    const previousGroups = localGroups
+    setBulkToggling(true)
+    siteExpandedOverrideRef.current = expanded
+    for (const group of localGroups) groupExpandedOverridesRef.current.set(group.id, expanded)
+    setSiteExpanded(expanded)
+    setLocalGroups((current) => current.map((group) => ({ ...group, expanded })))
+    try {
+      await Promise.all([
+        api.expanded('site', site.id, expanded),
+        ...localGroups.map((group) => api.expanded('group', group.id, expanded)),
+      ])
+      onChanged()
+    } catch (error) {
+      siteExpandedOverrideRef.current = null
+      for (const group of previousGroups) groupExpandedOverridesRef.current.set(group.id, group.expanded)
+      setSiteExpanded(previousSiteExpanded)
+      setLocalGroups(previousGroups)
+      onError(error instanceof Error ? error.message : String(error))
+      onChanged()
+    } finally {
+      setBulkToggling(false)
+      onKeepPosition()
+    }
+  }
   const siteChecking = isHealthActive({ siteId: site.id })
   const canDragSite = siteDragEnabled && !recommended && !filtering
-  return <article className="site-panel">
+  return <><article className="site-panel">
     <header className="site-header">
       <div className="site-reorder">
         <button className="drag-handle" title={!siteDragEnabled ? '切换到全部视图后可拖动排序' : filtering ? '筛选时无法排序' : '拖动排序'} draggable={canDragSite} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging({ kind: 'site', id: site.id }) }} onDragEnd={() => setDragging(null)} disabled={!canDragSite}><GripVertical size={18} /></button>
@@ -735,7 +767,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, on
         <div><small>健康分布</small><HealthBreakdown models={siteModels} /></div>
         <div><small>最近测活</small><span>{fmtTime(site.lastCheckAt)}</span></div>
       </div>
-      <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || filtering || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || filtering || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span><button type="button" className="button compact site-health-button" title={siteChecking ? '此站点正在测活' : '测活此站点'} disabled={siteChecking} onClick={() => onHealth({ siteId: site.id })}><RefreshCw className={siteChecking ? 'spin' : ''} size={15} /><span>{siteChecking ? '测活中' : '测活'}</span></button><IconButton title="编辑站点" disabled={deleting} onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title={siteChecking ? '测活完成后可删除站点' : deleting ? '正在删除站点' : '删除站点'} disabled={siteChecking || deleting} tone="danger" onClick={onDelete}>{deleting ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}</IconButton></div>
+      <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || filtering || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || filtering || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span>{onFocus && <IconButton title="聚焦此站点" onClick={onFocus}><PanelLeft size={16} /></IconButton>}<button type="button" className="button compact site-health-button" title={siteChecking ? '此站点正在测活' : '测活此站点'} disabled={siteChecking} onClick={() => onHealth({ siteId: site.id })}><RefreshCw className={siteChecking ? 'spin' : ''} size={15} /><span>{siteChecking ? '测活中' : '测活'}</span></button><IconButton title="编辑站点" disabled={deleting} onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title={siteChecking ? '测活完成后可删除站点' : deleting ? '正在删除站点' : '删除站点'} disabled={siteChecking || deleting} tone="danger" onClick={onDelete}>{deleting ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}</IconButton></div>
     </header>
     {siteExpanded && <div className="groups">
       {groups.map((group, groupIndex) => {
@@ -761,6 +793,12 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, on
       {!groups.length && <div className="empty-inline">尚未选择分组，编辑站点以完成配置。</div>}
     </div>}
   </article>
+  {focusedView && <nav className="focus-action-dock" aria-label="聚焦视图操作">
+    <button type="button" onClick={onShowAll}><List size={15} />返回全部</button>
+    <button type="button" disabled={bulkToggling} onClick={() => void setAllExpanded(true)}><ChevronsDown size={16} />全部展开</button>
+    <button type="button" disabled={bulkToggling} onClick={() => void setAllExpanded(false)}><ChevronsUp size={16} />全部收起</button>
+  </nav>}
+  </>
 }
 
 export function App() {
@@ -784,6 +822,7 @@ export function App() {
     } catch { return null }
   })
   const [focusedSiteId, setFocusedSiteId] = useState<number | null>(null)
+  const [bulkAllToggling, setBulkAllToggling] = useState(false)
   const [dragging, setDragging] = useState<{ kind: 'site' | 'group'; id: number } | null>(null)
   const [pendingHealthKeys, setPendingHealthKeys] = useState<Set<string>>(new Set())
   const [deletingSiteIds, setDeletingSiteIds] = useState<Set<number>>(new Set())
@@ -1164,6 +1203,78 @@ export function App() {
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
     })
   }
+
+  function currentViewportSiteId(): number | null {
+    const entries = Array.from(siteWorkspaceRef.current?.querySelectorAll<HTMLElement>('[data-site-id]') || [])
+    if (!entries.length) return null
+    const marker = 72
+    if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+      const visibleAtBottom = entries.filter((entry) => {
+        const rect = entry.getBoundingClientRect()
+        return rect.top < window.innerHeight && rect.bottom > marker
+      })
+      const lastVisible = visibleAtBottom.at(-1)
+      if (lastVisible) {
+        const bottomSiteId = Number(lastVisible.dataset.siteId)
+        if (Number.isFinite(bottomSiteId)) return bottomSiteId
+      }
+    }
+    const current = entries.find((entry) => {
+      const rect = entry.getBoundingClientRect()
+      return rect.top <= marker && rect.bottom > marker
+    }) || entries.reduce((nearest, entry) => {
+      const distance = Math.abs(entry.getBoundingClientRect().top - marker)
+      return distance < nearest.distance ? { entry, distance } : nearest
+    }, { entry: entries[0], distance: Number.POSITIVE_INFINITY }).entry
+    const siteId = Number(current.dataset.siteId)
+    return Number.isFinite(siteId) ? siteId : null
+  }
+
+  function scrollToSite(siteId: number) {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const entry = siteWorkspaceRef.current?.querySelector<HTMLElement>(`[data-site-id="${siteId}"]`)
+      const target = entry || siteWorkspaceRef.current
+      if (!target) return
+      const top = target.getBoundingClientRect().top + window.scrollY - 74
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    }))
+  }
+
+  function focusCurrentSite() {
+    const siteId = currentViewportSiteId()
+    if (siteId == null) return
+    changeSiteView('focus')
+    selectFocusedSite(siteId)
+  }
+
+  async function setEverySiteExpanded(expanded: boolean) {
+    if (bulkAllToggling || !dashboard) return
+    const anchorSiteId = currentViewportSiteId() || visibleSites[0]?.id
+    const targets = dashboard.sites
+    setBulkAllToggling(true)
+    setDashboard({
+      ...dashboard,
+      sites: dashboard.sites.map((site) => ({
+        ...site,
+        expanded,
+        groups: site.groups.map((group) => ({ ...group, expanded })),
+      })),
+    })
+    if (anchorSiteId) scrollToSite(anchorSiteId)
+    try {
+      await Promise.all(targets.flatMap((site) => [
+        api.expanded('site', site.id, expanded),
+        ...site.groups.map((group) => api.expanded('group', group.id, expanded)),
+      ]))
+      void loadFresh(true)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : String(error))
+      void loadFresh(true)
+    } finally {
+      setBulkAllToggling(false)
+      if (anchorSiteId) scrollToSite(anchorSiteId)
+    }
+  }
   if (!auth) return <LoadingScreen message="正在检查访问权限" error={authError} onRetry={() => {
     setAuthError('')
     void api.authStatus()
@@ -1240,12 +1351,17 @@ export function App() {
         <section className="site-list">
           {displayedSites.map((site) => {
             const index = dashboard.sites.findIndex((item) => item.id === site.id)
-            return <div key={site.id} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
+            return <div className="site-entry" data-site-id={site.id} key={`${siteView}:${site.id}`} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} focusedView={siteView === 'focus'} onFocus={siteView === 'all' ? () => { changeSiteView('focus'); selectFocusedSite(site.id) } : undefined} onShowAll={() => changeSiteView('all')} onKeepPosition={() => scrollToSite(site.id)} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
           })}
           {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
           {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}
         </section>
       </section>
+      {siteView === 'all' && visibleSites.length > 0 && <nav className="focus-action-dock all-action-dock" aria-label="全部视图操作">
+        <button type="button" onClick={focusCurrentSite}><PanelLeft size={15} />聚焦当前站点</button>
+        <button type="button" disabled={bulkAllToggling} onClick={() => void setEverySiteExpanded(true)}><ChevronsDown size={16} />全部展开</button>
+        <button type="button" disabled={bulkAllToggling} onClick={() => void setEverySiteExpanded(false)}><ChevronsUp size={16} />全部收起</button>
+      </nav>}
     </main>
     {wizard && <SiteWizard
       siteId={wizard.siteId}
