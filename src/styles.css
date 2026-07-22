@@ -271,7 +271,7 @@ a { color: inherit; }
 .site-index-status.checking { background: #246bfd; box-shadow: 0 0 0 3px rgba(36,107,253,.12); animation: pulse 1.2s infinite; }
 .site-index-empty { padding: 24px 12px; color: #7d899b; font-size: 11px; line-height: 1.5; text-align: center; }
 .site-list { min-width: 0; padding-top: 16px; }
-.site-list > div + div { margin-top: 24px; }
+.site-list > .site-entry + .site-entry { margin-top: 8px; }
 .site-context-bar {
   position: sticky;
   top: 72px;
