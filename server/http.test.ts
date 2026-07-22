@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { authHeaders, normalizeBaseUrl, remoteFetch, unwrap } from './http.js'
+import { authHeaders, isPrivateNetworkAddress, normalizeBaseUrl, remoteFetch, unwrap } from './http.js'
 import { isCloudflareChallenge } from './cloak.js'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -17,6 +17,15 @@ describe('HTTP helpers', () => {
 
   it('rejects credentials embedded in a Base URL', () => {
     expect(() => normalizeBaseUrl('https://user:secret@example.com')).toThrow('username or password')
+  })
+
+  it('classifies private, loopback, link-local, and public network addresses', () => {
+    for (const address of ['127.0.0.1', '10.1.2.3', '100.64.0.1', '169.254.169.254', '172.31.0.1', '192.168.1.1', '::1', '::ffff:7f00:1', 'fd00::1', 'fe80::1']) {
+      expect(isPrivateNetworkAddress(address), address).toBe(true)
+    }
+    for (const address of ['1.1.1.1', '8.8.8.8', '2606:4700:4700::1111']) {
+      expect(isPrivateNetworkAddress(address), address).toBe(false)
+    }
   })
 
   it('builds compatible New API authentication headers', () => {
@@ -73,6 +82,29 @@ describe('HTTP helpers', () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
     const response = await remoteFetch('https://example.com', '/slow', {}, 20)
     await expect(response.text()).rejects.toThrow('timed out')
+  })
+
+  it('holds the three-request origin limit until response bodies finish', async () => {
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start() {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const active = await Promise.all([
+      remoteFetch('https://example.com', '/one'),
+      remoteFetch('https://example.com', '/two'),
+      remoteFetch('https://example.com', '/three'),
+    ])
+    const controller = new AbortController()
+    const queued = remoteFetch('https://example.com', '/four', { signal: controller.signal })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+
+    controller.abort()
+    await expect(queued).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    await Promise.all(active.map((response) => response.body?.cancel()))
   })
 
   it('stops oversized remote responses before they can consume unbounded memory', async () => {

@@ -6,7 +6,10 @@ import { config } from './config.js'
 const cookieName = 'aimon_session'
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000
 const failureWindowMs = 15 * 60 * 1000
+const failureCleanupIntervalMs = 60 * 1000
+const maxTrackedClients = 4_096
 const failures = new Map<string, { count: number; blockedUntil: number; lastFailureAt: number }>()
+let lastFailureCleanupAt = 0
 
 export class AuthError extends Error {
   constructor(message: string, public readonly status = 401) {
@@ -112,8 +115,11 @@ function rateKey(request: Request): string {
 
 function assertRateLimit(request: Request): void {
   const now = Date.now()
-  for (const [key, state] of failures) {
-    if (state.blockedUntil <= now && now - state.lastFailureAt >= failureWindowMs) failures.delete(key)
+  if (now - lastFailureCleanupAt >= failureCleanupIntervalMs) {
+    for (const [key, state] of failures) {
+      if (state.blockedUntil <= now && now - state.lastFailureAt >= failureWindowMs) failures.delete(key)
+    }
+    lastFailureCleanupAt = now
   }
   const state = failures.get(rateKey(request))
   if (state?.blockedUntil && state.blockedUntil > Date.now()) {
@@ -125,6 +131,10 @@ function recordFailure(request: Request): void {
   const key = rateKey(request)
   const now = Date.now()
   const stored = failures.get(key)
+  if (!stored && failures.size >= maxTrackedClients) {
+    const oldest = failures.keys().next().value
+    if (oldest) failures.delete(oldest)
+  }
   const current = stored && now - stored.lastFailureAt < failureWindowMs
     ? stored
     : { count: 0, blockedUntil: 0, lastFailureAt: now }
@@ -172,10 +182,13 @@ export function login(request: Request, response: Response, password: string): v
 
 export function changePassword(request: Request, response: Response, currentPassword: string, newPassword: string): void {
   validatePassword(newPassword)
+  assertRateLimit(request)
   const row = passwordRow()
   if (!row.admin_password_hash || !verifyPassword(currentPassword, row.admin_password_hash)) {
+    recordFailure(request)
     throw new AuthError('当前管理密码不正确')
   }
+  clearFailures(request)
   const version = Number(row.admin_password_version || 0) + 1
   db.prepare('UPDATE settings SET admin_password_hash = ?, admin_password_version = ?, updated_at = ? WHERE id = 1')
     .run(hashPassword(newPassword), version, nowIso())

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { config } from './config.js'
 import { prepareDataDirectory } from './storage.js'
@@ -6,6 +7,7 @@ import { prepareDataDirectory } from './storage.js'
 prepareDataDirectory(config.dataDir, config.requirePersistentData)
 
 export const db = new DatabaseSync(path.join(config.dataDir, 'aimon.sqlite'))
+if (process.platform !== 'win32') fs.chmodSync(path.join(config.dataDir, 'aimon.sqlite'), 0o600)
 db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;')
 
 db.exec(`

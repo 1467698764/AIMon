@@ -22,6 +22,13 @@ assert.equal(response.headers['permissions-policy'], 'camera=(), microphone=(), 
 response = await anonymous.get('/api/dashboard')
 assert.equal(response.status, 428)
 
+response = await anonymous
+  .post('/api/auth/login')
+  .set('Content-Type', 'application/json')
+  .send('{broken json')
+assert.equal(response.status, 400)
+assert.equal(response.body.error, 'Malformed JSON request body')
+
 response = await anonymous.post('/api/auth/setup').send({ password: 'short' })
 assert.equal(response.status, 400)
 
@@ -31,6 +38,22 @@ assert.equal(response.status, 200)
 
 response = await session.get('/api/dashboard')
 assert.equal(response.status, 200)
+
+response = await session.get('/api/does-not-exist')
+assert.equal(response.status, 404)
+assert.equal(response.body.error, 'API endpoint not found')
+
+response = await session.get('/api/sites/not-a-number')
+assert.equal(response.status, 400)
+
+response = await session.post('/api/drafts/1/configure').send({
+  runHealth: false,
+  selections: [
+    { groupId: 2, modelIds: [3] },
+    { groupId: 2, modelIds: [4] },
+  ],
+})
+assert.equal(response.status, 400)
 
 response = await anonymous.get('/api/dashboard')
 assert.equal(response.status, 401)
@@ -46,6 +69,15 @@ await session.post('/api/auth/logout').expect(204)
 await session.post('/api/auth/login').send({ password: 'first-password' }).expect(401)
 await session.post('/api/auth/login').send({ password: 'second-password' }).expect(200)
 await session.get('/api/dashboard').expect(200)
+
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  await session.post('/api/auth/password')
+    .send({ currentPassword: 'wrong-current-password', newPassword: 'third-password' })
+    .expect(401)
+}
+await session.post('/api/auth/password')
+  .send({ currentPassword: 'second-password', newPassword: 'third-password' })
+  .expect(429)
 
 const attackerIp = '203.0.113.45'
 for (let attempt = 0; attempt < 5; attempt += 1) {

@@ -10,6 +10,9 @@
     "dev": "concurrently -k -n web,api -c cyan,green \"vite\" \"tsx watch server/index.ts\"",
     "build": "tsc -p server/tsconfig.json && vite build",
     "start": "node dist-server/index.js",
+    "doctor": "node scripts/doctor.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "backup": "node scripts/backup.mjs",
     "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
     "test": "vitest run && tsx tests/site-service-integration.ts && tsx tests/auth-integration.ts && tsx tests/auth-bootstrap-integration.ts && tsx tests/db-persistence.ts",
     "test:watch": "vitest"

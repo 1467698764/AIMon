@@ -44,7 +44,10 @@ export class NewApiAdapter implements SiteAdapter {
   async probe(baseUrl: string): Promise<boolean> {
     try {
       const response = await remoteFetch(baseUrl, '/api/status', {}, 6_000)
-      if (!response.ok) return false
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        return false
+      }
       const body = await response.json() as any
       const data = body?.data
       return body?.success === true && Boolean(data && typeof data === 'object' && (

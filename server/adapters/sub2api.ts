@@ -37,7 +37,10 @@ export class Sub2ApiAdapter implements SiteAdapter {
   async probe(baseUrl: string): Promise<boolean> {
     try {
       const response = await remoteFetch(baseUrl, '/api/v1/settings/public', {}, 6_000)
-      if (!response.ok) return false
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        return false
+      }
       const body = await response.json() as any
       return body?.code === 0 || Boolean(body?.data?.registration_enabled)
     } catch {

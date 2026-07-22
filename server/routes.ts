@@ -19,6 +19,13 @@ import { hasActiveHealthForSite, listJobs, startHealthCheck } from './health.js'
 import { redactSensitiveText, sensitiveValues } from './privacy.js'
 
 const router = Router()
+const positiveId = z.coerce.number().int().positive()
+const uniqueIds = (minimum: number, maximum: number) => z.array(z.number().int().positive()).min(minimum).max(maximum)
+  .refine((ids) => new Set(ids).size === ids.length, { message: 'ID list contains duplicate values' })
+
+function routeId(value: unknown): number {
+  return positiveId.parse(value)
+}
 
 const asyncHandler = (handler: (...args: Parameters<RequestHandler>) => Promise<unknown>): RequestHandler =>
   (req, res, next) => { void handler(req, res, next).catch(next) }
@@ -27,15 +34,15 @@ router.get('/dashboard', (_req, res) => res.json(getDashboard()))
 router.get('/settings', (_req, res) => res.json(getSettings()))
 router.put('/settings', (req, res) => {
   const input = z.object({
-    username: z.string().optional(),
-    password: z.string().optional(),
+    username: z.string().max(200).optional(),
+    password: z.string().max(500).optional(),
     autoCheckMinutes: z.number().int().min(0).max(525_600).optional(),
     healthAttempts: z.number().int().min(1).max(10).optional(),
   }).parse(req.body)
   res.json(saveSettings(input))
 })
 
-router.get('/sites/:id', (req, res) => res.json(getSiteEditor(Number(req.params.id))))
+router.get('/sites/:id', (req, res) => res.json(getSiteEditor(routeId(req.params.id))))
 router.post('/sites/discover', asyncHandler(async (req, res) => {
   const input = z.object({
     id: z.number().int().positive().optional(),
@@ -66,18 +73,21 @@ router.post('/sites/manual', asyncHandler(async (req, res) => {
   res.json(await prepareManualSite(input))
 }))
 router.post('/drafts/:id/prepare', asyncHandler(async (req, res) => {
-  const input = z.object({ groupIds: z.array(z.number().int().positive()).min(1) }).parse(req.body)
-  res.json(await prepareGroups(Number(req.params.id), input.groupIds))
+  const input = z.object({ groupIds: uniqueIds(1, 100) }).parse(req.body)
+  res.json(await prepareGroups(routeId(req.params.id), input.groupIds))
 }))
 router.post('/drafts/:id/configure', (req, res) => {
   const input = z.object({
     runHealth: z.boolean().optional().default(true),
     selections: z.array(z.object({
       groupId: z.number().int().positive(),
-      modelIds: z.array(z.number().int().positive()).min(1),
-    })).min(1),
+      modelIds: uniqueIds(1, 10_000),
+    })).min(1).max(100)
+      .refine((items) => new Set(items.map((item) => item.groupId)).size === items.length, {
+        message: 'A group may only appear once in a configuration',
+      }),
   }).parse(req.body)
-  const siteId = configureSite(Number(req.params.id), input.selections)
+  const siteId = configureSite(routeId(req.params.id), input.selections)
   const secrets = sensitiveValues(req.body)
   let job
   let healthStartError
@@ -105,11 +115,11 @@ router.post('/drafts/:id/configure', (req, res) => {
   })
 })
 router.delete('/drafts/:id', (req, res) => {
-  discardDraft(Number(req.params.id))
+  discardDraft(routeId(req.params.id))
   res.status(204).end()
 })
 router.delete('/sites/:id', (req, res) => {
-  const siteId = Number(req.params.id)
+  const siteId = routeId(req.params.id)
   if (hasActiveHealthForSite(siteId)) {
     res.status(409).json({ error: '该站点正在测活，请等待任务完成后再删除' })
     return
@@ -127,12 +137,12 @@ router.patch('/sites/expanded/bulk', (req, res) => {
 router.patch('/sites/:kind/:id/expanded', (req, res) => {
   const kind = z.enum(['site', 'group']).parse(req.params.kind)
   const { expanded } = z.object({ expanded: z.boolean() }).parse(req.body)
-  updateExpanded(kind, Number(req.params.id), expanded)
+  updateExpanded(kind, routeId(req.params.id), expanded)
   res.json({ ok: true })
 })
 router.put('/order/:kind', (req, res) => {
   const kind = z.enum(['site', 'group']).parse(req.params.kind)
-  const { ids } = z.object({ ids: z.array(z.number().int().positive()) }).parse(req.body)
+  const { ids } = z.object({ ids: uniqueIds(0, 1_000) }).parse(req.body)
   reorder(kind, ids)
   res.json({ ok: true })
 })

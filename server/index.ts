@@ -54,6 +54,9 @@ app.use('/api', (_req, res, next) => {
 })
 app.use('/api/auth', authRoutes)
 app.use('/api', requireAppAuth, routes)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' })
+})
 
 if (config.isProduction) {
   const dist = path.resolve('dist')
@@ -87,6 +90,16 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error instanceof AuthError) {
     res.status(error.status).json({ error: error.message })
     return
+  }
+  if (error && typeof error === 'object' && 'type' in error) {
+    if (error.type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'Malformed JSON request body' })
+      return
+    }
+    if (error.type === 'entity.too.large') {
+      res.status(413).json({ error: 'Request body is too large' })
+      return
+    }
   }
   const secrets = sensitiveValues(req.body)
   const message = redactSensitiveText(error instanceof Error ? error.message : '服务器内部错误', secrets)

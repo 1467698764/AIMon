@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises'
+import { BlockList, isIP } from 'node:net'
 import { config } from './config.js'
 import {
   browserFetch,
@@ -56,23 +58,112 @@ const maxResponseBytes = 8 * 1024 * 1024
 
 class OriginSemaphore {
   private active = 0
-  private readonly waiting: Array<() => void> = []
+  private readonly waiting: Array<{
+    resolve: () => void
+    reject: (error: Error) => void
+    signal?: AbortSignal | null
+    abort?: () => void
+  }> = []
 
   constructor(private readonly limit: number) {}
 
-  async run<T>(task: () => Promise<T>): Promise<T> {
-    if (this.active >= this.limit) await new Promise<void>((resolve) => this.waiting.push(resolve))
-    this.active += 1
-    try {
-      return await task()
-    } finally {
-      this.active -= 1
-      this.waiting.shift()?.()
+  private async acquire(signal?: AbortSignal | null): Promise<void> {
+    if (signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError')
+    if (this.active < this.limit) {
+      this.active += 1
+      return
     }
+    await new Promise<void>((resolve, reject) => {
+      const entry: (typeof this.waiting)[number] = { resolve, reject, signal }
+      entry.abort = () => {
+        const index = this.waiting.indexOf(entry)
+        if (index >= 0) this.waiting.splice(index, 1)
+        reject(new DOMException('The operation was aborted', 'AbortError'))
+      }
+      signal?.addEventListener('abort', entry.abort, { once: true })
+      this.waiting.push(entry)
+    })
+  }
+
+  private release(): void {
+    this.active -= 1
+    while (this.waiting.length) {
+      const next = this.waiting.shift()!
+      next.signal?.removeEventListener('abort', next.abort!)
+      if (next.signal?.aborted) continue
+      this.active += 1
+      next.resolve()
+      break
+    }
+  }
+
+  async acquirePermit(signal?: AbortSignal | null): Promise<() => void> {
+    await this.acquire(signal)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.release()
+    }
+  }
+
+  get idle(): boolean {
+    return this.active === 0 && this.waiting.length === 0
   }
 }
 
 const originSemaphores = new Map<string, OriginSemaphore>()
+const destinationChecks = new Map<string, { expiresAt: number; promise: Promise<void> }>()
+const privateNetworkBlockList = new BlockList()
+
+for (const [network, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+] as Array<[string, number]>) privateNetworkBlockList.addSubnet(network, prefix, 'ipv4')
+
+for (const [network, prefix] of [
+  ['::', 128], ['::1', 128], ['64:ff9b:1::', 48], ['100::', 64], ['2001:db8::', 32],
+  ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
+] as Array<[string, number]>) privateNetworkBlockList.addSubnet(network, prefix, 'ipv6')
+
+export function isPrivateNetworkAddress(address: string): boolean {
+  const normalized = address.toLowerCase().split('%', 1)[0]
+  const family = isIP(normalized)
+  return family !== 0 && privateNetworkBlockList.check(normalized, family === 4 ? 'ipv4' : 'ipv6')
+}
+
+async function assertRemoteDestination(baseUrl: string): Promise<void> {
+  if (config.allowPrivateNetwork) return
+  const hostname = new URL(normalizeBaseUrl(baseUrl)).hostname.toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw new RemoteError('Private or loopback network destinations are disabled')
+  }
+  const cached = destinationChecks.get(hostname)
+  if (cached && cached.expiresAt > Date.now()) return cached.promise
+  const promise = lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
+    if (!addresses.length || addresses.some(({ address }) => isPrivateNetworkAddress(address))) {
+      throw new RemoteError('Private or loopback network destinations are disabled')
+    }
+  }).catch((error) => {
+    if (error instanceof RemoteError) throw error
+    throw new RemoteError(`Unable to resolve the remote site: ${error instanceof Error ? error.message : String(error)}`)
+  })
+  if (!cached && destinationChecks.size >= 1_024) {
+    const oldest = destinationChecks.keys().next().value
+    if (oldest) destinationChecks.delete(oldest)
+  }
+  destinationChecks.set(hostname, { expiresAt: Date.now() + 60_000, promise })
+  try {
+    await promise
+  } catch (error) {
+    if (destinationChecks.get(hostname)?.promise === promise) destinationChecks.delete(hostname)
+    throw error
+  }
+}
 
 function semaphoreFor(baseUrl: string): OriginSemaphore {
   const origin = new URL(normalizeBaseUrl(baseUrl)).origin
@@ -82,6 +173,48 @@ function semaphoreFor(baseUrl: string): OriginSemaphore {
     originSemaphores.set(origin, semaphore)
   }
   return semaphore
+}
+
+function responseWithPermit(response: Response, release: () => void, timeoutMs: number): Response {
+  if (!response.body) {
+    release()
+    return response
+  }
+  const reader = response.body.getReader()
+  let finished = false
+  const fallback = setTimeout(finish, timeoutMs)
+  fallback.unref()
+  function finish(): void {
+    if (finished) return
+    finished = true
+    clearTimeout(fallback)
+    release()
+  }
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read()
+        if (chunk.done) {
+          finish()
+          controller.close()
+        } else {
+          controller.enqueue(chunk.value)
+        }
+      } catch (error) {
+        finish()
+        controller.error(error)
+      }
+    },
+    async cancel(reason) {
+      finish()
+      await reader.cancel(reason).catch(() => undefined)
+    },
+  })
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
 }
 
 async function nodeRequest(
@@ -229,7 +362,24 @@ export async function remoteFetch(
   init: RequestInit = {},
   timeoutMs = config.requestTimeoutMs,
 ): Promise<Response> {
-  return semaphoreFor(baseUrl).run(() => remoteFetchInternal(baseUrl, pathname, init, timeoutMs))
+  await assertRemoteDestination(baseUrl)
+  const semaphore = semaphoreFor(baseUrl)
+  const origin = new URL(normalizeBaseUrl(baseUrl)).origin
+  const cleanup = () => {
+    if (semaphore.idle && originSemaphores.get(origin) === semaphore) originSemaphores.delete(origin)
+  }
+  const releasePermit = await semaphore.acquirePermit(init.signal)
+  const release = () => {
+    releasePermit()
+    cleanup()
+  }
+  try {
+    const response = await remoteFetchInternal(baseUrl, pathname, init, timeoutMs)
+    return responseWithPermit(response, release, timeoutMs)
+  } catch (error) {
+    release()
+    throw error
+  }
 }
 
 export async function readJson(response: Response): Promise<any> {

@@ -24,8 +24,9 @@ RUN npm ci --omit=dev \
     && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
+COPY --from=build /app/scripts ./scripts
 EXPOSE 8787
 VOLUME ["/root/.cloakbrowser"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:8787/api/auth/status').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
+  CMD node scripts/healthcheck.mjs
 CMD ["node", "dist-server/index.js"]

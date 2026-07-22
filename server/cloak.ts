@@ -88,6 +88,7 @@ const pending = new Map<string, Promise<ManagedContext>>()
 const refreshing = new Map<string, Promise<BrowserSession>>()
 const closing = new Map<string, Promise<void>>()
 const launchGate = new Semaphore(1)
+const challengeInspectionBytes = 512 * 1024
 
 function originOf(baseUrl: string): string {
   return new URL(baseUrl).origin
@@ -150,7 +151,29 @@ export async function isCloudflareChallenge(response: Response): Promise<boolean
   const contentType = response.headers.get('content-type') || ''
   const suspiciousStatus = [403, 429, 503].includes(response.status)
   if (!suspiciousStatus && !/text\/html|application\/xhtml\+xml/i.test(contentType)) return false
-  const text = await response.clone().text().catch(() => '')
+  const clone = response.clone()
+  const reader = clone.body?.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  let bytes = 0
+  try {
+    if (reader) {
+      while (bytes < challengeInspectionBytes) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        const remaining = challengeInspectionBytes - bytes
+        const value = chunk.value.byteLength > remaining ? chunk.value.subarray(0, remaining) : chunk.value
+        bytes += value.byteLength
+        text += decoder.decode(value, { stream: true })
+        if (challengePattern(text)) return true
+      }
+      text += decoder.decode()
+    }
+  } catch {
+    text = ''
+  } finally {
+    void reader?.cancel().catch(() => undefined)
+  }
   if (challengePattern(text)) return true
   return suspiciousStatus
     && /cloudflare/i.test(response.headers.get('server') || '')

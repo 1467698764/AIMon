@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { startTransition, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
   ChevronsDown, ChevronsUp, CircleAlert, GripVertical, Layers3, List, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, PanelLeft, Pencil, Plus,
-  RefreshCw, Search, Server, Settings as SettingsIcon, Sparkles, Timer, Trash2, X,
+  RefreshCw, Rows3, Search, Server, Settings as SettingsIcon, Sparkles, Timer, Trash2, X,
 } from 'lucide-react'
 import { api } from './api'
 import type {
@@ -138,10 +138,10 @@ function statusError(model: ModelItem): string {
     .join('\n')
 }
 
-function IconButton({ title, children, onClick, tone = 'default', disabled = false }: {
-  title: string; children: ReactNode; onClick: () => void; tone?: 'default' | 'danger'; disabled?: boolean
+function IconButton({ title, children, onClick, tone = 'default', disabled = false, pressed }: {
+  title: string; children: ReactNode; onClick: () => void; tone?: 'default' | 'danger'; disabled?: boolean; pressed?: boolean
 }) {
-  return <button type="button" className={`icon-button ${tone}`} title={title} aria-label={title} onClick={onClick} disabled={disabled}>{children}</button>
+  return <button type="button" className={`icon-button ${tone} ${pressed ? 'active' : ''}`} title={title} aria-label={title} aria-pressed={pressed} onClick={onClick} disabled={disabled}>{children}</button>
 }
 
 function LoadingScreen({ message, error, onRetry }: { message: string; error?: string; onRetry?: () => void }) {
@@ -272,7 +272,7 @@ function AuthScreen({ status, onAuthenticated }: { status: AuthStatus; onAuthent
       <form onSubmit={submit} className="auth-form">
         <label><span>{setup ? '管理密码' : '密码'}</span><input required minLength={setup ? 8 : 1} maxLength={200} type="password" autoComplete={setup ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} autoFocus /></label>
         {setup && <label><span>确认管理密码</span><input required minLength={8} maxLength={200} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>}
-        {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
+        {error && <div className="form-error" role="alert"><CircleAlert size={16} />{error}</div>}
         <button className="button primary" disabled={submitting}>{submitting && <LoaderCircle size={16} className="spin" />}{setup ? '完成设置' : '登录'}</button>
       </form>
     </section>
@@ -332,7 +332,7 @@ function SettingsModal({ current, onClose, onSaved }: {
           <label><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>
           <label><span>新管理密码</span><input value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" placeholder="至少 8 个字符" /></label>
           <label><span>确认新管理密码</span><input value={confirmAdminPassword} onChange={(e) => setConfirmAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" required={Boolean(newAdminPassword)} /></label>
-          {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
+          {error && <div className="form-error" role="alert"><CircleAlert size={16} />{error}</div>}
         </div>
         <footer className="modal-footer"><button type="button" className="button ghost" disabled={saving} onClick={onClose}>取消</button><button className="button primary" disabled={saving}>{saving && <LoaderCircle size={16} className="spin" />}保存</button></footer>
       </form>
@@ -343,7 +343,7 @@ function SettingsModal({ current, onClose, onSaved }: {
 function Steps({ step, manual }: { step: number; manual: boolean }) {
   const labels = manual ? ['站点与分组', '选择模型'] : ['站点信息', '选择分组', '选择模型']
   const visibleStep = manual && step === 3 ? 2 : step
-  return <div className="steps" style={{ gridTemplateColumns: `repeat(${labels.length}, 1fr)` }}>{labels.map((label, index) => <div className={`step ${visibleStep >= index + 1 ? 'active' : ''}`} key={label}><span>{visibleStep > index + 1 ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div>
+  return <div className="steps" aria-label="配置步骤" style={{ gridTemplateColumns: `repeat(${labels.length}, 1fr)` }}>{labels.map((label, index) => <div className={`step ${visibleStep >= index + 1 ? 'active' : ''}`} aria-current={visibleStep === index + 1 ? 'step' : undefined} key={label}><span>{visibleStep > index + 1 ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div>
 }
 
 type ManualGroupForm = { clientId: string; id?: number; name: string; ratio: number; apiKey: string; hasKey: boolean }
@@ -382,8 +382,10 @@ function SiteWizard({ siteId, onClose, onSaved }: {
   const [prepared, setPrepared] = useState<PreparedGroup[]>([])
   const [selectedModels, setSelectedModels] = useState<Map<number, Set<number>>>(new Map())
   const [savingWithHealth, setSavingWithHealth] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [loadingSeconds, setLoadingSeconds] = useState(0)
   const operationRef = useRef(false)
+  const operationAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!loading) {
@@ -396,6 +398,9 @@ function SiteWizard({ siteId, onClose, onSaved }: {
   }, [loading])
 
   function cancel() {
+    operationAbortRef.current?.abort()
+    operationAbortRef.current = null
+    operationRef.current = false
     const draftId = editor?.draftId
     onClose()
     if (draftId) void api.discardDraft(draftId).catch(() => undefined)
@@ -403,7 +408,9 @@ function SiteWizard({ siteId, onClose, onSaved }: {
 
   useEffect(() => {
     if (!siteId) return
-    api.site(siteId).then((site) => {
+    const controller = new AbortController()
+    operationAbortRef.current = controller
+    api.site(siteId, controller.signal).then((site) => {
       setEditor(site)
       setMode(site.connectionMode)
       setForm({ name: site.name, baseUrl: site.baseUrl, username: site.username, password: '', rechargeRatio: site.rechargeRatio, useDefault: !site.username && !site.hasPassword })
@@ -413,12 +420,18 @@ function SiteWizard({ siteId, onClose, onSaved }: {
           clientId: crypto.randomUUID(), id: group.id, name: group.name, ratio: group.ratio, apiKey: '', hasKey: group.hasKey,
         })))
       }
-    }).catch((err) => setError(err.message)).finally(() => setLoading(false))
+    }).catch((err) => { if (!controller.signal.aborted) setError(err.message) }).finally(() => {
+      if (operationAbortRef.current === controller) operationAbortRef.current = null
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [siteId])
 
   async function discover(event: FormEvent) {
     if (operationRef.current) return
     operationRef.current = true
+    const controller = new AbortController()
+    operationAbortRef.current = controller
     event.preventDefault(); setLoading(true); setError('')
     try {
       if (mode === 'manual') {
@@ -430,7 +443,7 @@ function SiteWizard({ siteId, onClose, onSaved }: {
             ...(group.id ? { id: group.id } : {}), name: group.name, ratio: group.ratio,
             ...(group.apiKey ? { apiKey: group.apiKey } : {}),
           })),
-        })
+        }, controller.signal)
         setEditor(result.editor)
         setPrepared(result.groups)
         setSelectedModels(new Map(result.groups.map((group) => [group.id, new Set(group.models.filter((model) => model.selected).map((model) => model.id))])))
@@ -443,26 +456,36 @@ function SiteWizard({ siteId, onClose, onSaved }: {
         name: form.name, baseUrl: form.baseUrl, rechargeRatio: form.rechargeRatio,
         useDefaultCredentials: form.useDefault,
         ...(form.useDefault ? { username: '', password: '' } : { username: form.username, ...(form.password ? { password: form.password } : {}) }),
-      })
+      }, controller.signal)
       setEditor(site)
       setSelectedGroups(new Set(site.groups.filter((group) => group.selected && group.available).map((group) => group.id)))
       setStep(2)
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { operationRef.current = false; setLoading(false) }
+    } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err)) }
+    finally {
+      if (operationAbortRef.current === controller) operationAbortRef.current = null
+      operationRef.current = false
+      if (!controller.signal.aborted) setLoading(false)
+    }
   }
 
   async function prepare() {
     if (!editor || !selectedGroups.size || operationRef.current) return
     operationRef.current = true
+    const controller = new AbortController()
+    operationAbortRef.current = controller
     setLoading(true); setError('')
     try {
       if (!editor.draftId) throw new Error('请先探测站点')
-      const result = await api.prepare(editor.draftId, [...selectedGroups])
+      const result = await api.prepare(editor.draftId, [...selectedGroups], controller.signal)
       setPrepared(result.groups)
       setSelectedModels(new Map(result.groups.map((group) => [group.id, new Set(group.models.filter((model) => model.selected).map((model) => model.id))])))
       setStep(3)
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { operationRef.current = false; setLoading(false) }
+    } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err)) }
+    finally {
+      if (operationAbortRef.current === controller) operationAbortRef.current = null
+      operationRef.current = false
+      if (!controller.signal.aborted) setLoading(false)
+    }
   }
 
   async function finish(runHealth: boolean) {
@@ -470,15 +493,23 @@ function SiteWizard({ siteId, onClose, onSaved }: {
     const selections = prepared.map((group) => ({ groupId: group.id, modelIds: [...(selectedModels.get(group.id) || [])] }))
     if (selections.some((item) => !item.modelIds.length)) { setError('每个分组至少选择一个模型'); return }
     operationRef.current = true
+    const controller = new AbortController()
+    operationAbortRef.current = controller
+    setSaving(true)
     setSavingWithHealth(runHealth); setLoading(true); setError('')
     try {
       if (!editor.draftId) throw new Error('配置草稿不存在，请重新探测站点')
-      const result = await api.configure(editor.draftId, selections, runHealth)
+      const result = await api.configure(editor.draftId, selections, runHealth, controller.signal)
       onSaved(runHealth, result.dashboard, result.job, result.healthStartError || result.refreshError)
       onClose()
     }
-    catch (err) { setError(err instanceof Error ? err.message : String(err)) }
-    finally { operationRef.current = false; setLoading(false) }
+    catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err)) }
+    finally {
+      if (operationAbortRef.current === controller) operationAbortRef.current = null
+      operationRef.current = false
+      setSaving(false)
+      if (!controller.signal.aborted) setLoading(false)
+    }
   }
 
   function toggleModel(groupId: number, modelId: number) {
@@ -492,12 +523,12 @@ function SiteWizard({ siteId, onClose, onSaved }: {
     && comparableBaseUrl(form.baseUrl) !== comparableBaseUrl(editor.baseUrl))
 
   return (
-    <Modal title={siteId ? '编辑站点' : '添加站点'} onClose={cancel} wide closeDisabled={loading}>
+    <Modal title={siteId ? '编辑站点' : '添加站点'} onClose={cancel} wide closeDisabled={saving}>
       <Steps step={step} manual={mode === 'manual'} />
-      {loading && <div className="modal-loading"><LoaderCircle className="spin" size={28} /><span>{step === 1 ? (mode === 'manual' ? '正在验证 API Key 并获取模型' : '正在识别站点并获取账户信息') : step === 2 ? '正在准备分组 Key 与模型' : savingWithHealth ? '正在保存并启动测活' : '正在保存配置'}</span>{loadingSeconds >= 2 && <small>已等待 {loadingSeconds} 秒，复杂站点或 Cloudflare 验证可能需要更久</small>}</div>}
+      {loading && <div className="modal-loading"><LoaderCircle className="spin" size={28} /><span>{step === 1 ? (mode === 'manual' ? '正在验证 API Key 并获取模型' : '正在识别站点并获取账户信息') : step === 2 ? '正在准备分组 Key 与模型' : savingWithHealth ? '正在保存并启动测活' : '正在保存配置'}</span>{loadingSeconds >= 2 && <small>已等待 {loadingSeconds} 秒，复杂站点或 Cloudflare 验证可能需要更久</small>}{!saving && <button type="button" className="button ghost" onClick={cancel}>取消当前操作</button>}</div>}
       {!loading && step === 1 && <form onSubmit={discover}>
         <div className="modal-body form-grid two-cols">
-          <div className="mode-switch full" role="group" aria-label="接入方式"><button type="button" className={mode === 'auto' ? 'active' : ''} onClick={() => setMode('auto')}>自动登录</button><button type="button" className={mode === 'manual' ? 'active' : ''} onClick={() => setMode('manual')}>手动 API Key</button></div>
+          <div className="mode-switch full" role="group" aria-label="接入方式"><button type="button" aria-pressed={mode === 'auto'} className={mode === 'auto' ? 'active' : ''} onClick={() => setMode('auto')}>自动登录</button><button type="button" aria-pressed={mode === 'manual'} className={mode === 'manual' ? 'active' : ''} onClick={() => setMode('manual')}>手动 API Key</button></div>
           <label><span>站点名称</span><input required maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如：主力渠道" /></label>
           <label><span>Base URL（/v1 可省略）</span><input required value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.example.com" /></label>
           <label><span>充值比例</span><div className="input-prefix"><b>x</b><input required type="number" min="0.000001" step="any" value={form.rechargeRatio} onChange={(e) => setForm({ ...form, rechargeRatio: Number(e.target.value) })} /></div></label>
@@ -515,19 +546,19 @@ function SiteWizard({ siteId, onClose, onSaved }: {
               <IconButton title="删除此分组" tone="danger" disabled={manualGroups.length === 1} onClick={() => setManualGroups((current) => current.filter((item) => item.clientId !== group.clientId))}><Trash2 size={16} /></IconButton>
             </div>)}
           </section>}
-          {error && <div className="form-error full"><CircleAlert size={16} />{error}</div>}
+          {error && <div className="form-error full" role="alert"><CircleAlert size={16} />{error}</div>}
         </div>
         <footer className="modal-footer"><button type="button" className="button ghost" onClick={cancel}>取消</button><button className="button primary">{mode === 'manual' ? '获取模型' : '探测站点'}<ArrowRight size={16} /></button></footer>
       </form>}
       {!loading && step === 2 && mode === 'auto' && editor && <>
         <div className="site-found"><span className={`platform ${editor.type}`}>{editor.type === 'newapi' ? 'New API' : 'Sub2API'}</span><div><small>账户余额</small><strong>{fmtCurrency(editor.balance, editor.currency)}</strong></div><div><small>充值比例</small><strong>x{editor.rechargeRatio}</strong></div></div>
         <div className="modal-body selection-list">
-          {editor.groups.filter((group) => group.available).map((group) => <label className="selection-row" key={group.id}>
+          {editor.groups.filter((group) => group.available).map((group) => <label className={`selection-row ${selectedGroups.has(group.id) ? 'selected' : ''}`} key={group.id}>
             <input type="checkbox" checked={selectedGroups.has(group.id)} onChange={() => setSelectedGroups((current) => { const next = new Set(current); next.has(group.id) ? next.delete(group.id) : next.add(group.id); return next })} />
             <span><b>{group.name}</b><small>{group.platform || '通用分组'}</small></span><strong>{group.ratioDynamic ? '自动' : `x${group.ratio}`}</strong>{group.hasKey && <em>已复用 Key</em>}
           </label>)}
           {!editor.groups.some((group) => group.available) && <div className="empty-inline">没有可选分组</div>}
-          {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
+          {error && <div className="form-error" role="alert"><CircleAlert size={16} />{error}</div>}
         </div>
         <footer className="modal-footer"><button className="button ghost" onClick={() => setStep(1)}><ArrowLeft size={16} />返回</button><button className="button primary" onClick={prepare} disabled={!selectedGroups.size}>确认分组<ArrowRight size={16} /></button></footer>
       </>}
@@ -535,9 +566,9 @@ function SiteWizard({ siteId, onClose, onSaved }: {
         <div className="modal-body model-selector">
           {prepared.map((group) => <section className="model-select-group" key={group.id}>
             <header><div><h3>{group.name}</h3><span>{group.standardRatio == null ? '动态倍率 · 不参与价格推荐' : `x${group.ratio} · 标准 x${group.standardRatio.toFixed(3)}`}</span></div><button className="text-button" onClick={() => setSelectedModels((current) => { const next = new Map(current); const all = group.models.map((m) => m.id); next.set(group.id, (next.get(group.id)?.size || 0) === all.length ? new Set() : new Set(all)); return next })}>全选 / 取消</button></header>
-            <div className="model-check-grid">{group.models.map((model) => <label key={model.id}><input type="checkbox" checked={selectedModels.get(group.id)?.has(model.id) || false} onChange={() => toggleModel(group.id, model.id)} /><span title={model.name}>{model.name}</span></label>)}</div>
+            <div className="model-check-grid">{group.models.map((model) => { const selected = selectedModels.get(group.id)?.has(model.id) || false; return <label className={selected ? 'selected' : ''} key={model.id}><input type="checkbox" checked={selected} onChange={() => toggleModel(group.id, model.id)} /><span title={model.name}>{model.name}</span></label> })}</div>
           </section>)}
-          {error && <div className="form-error"><CircleAlert size={16} />{error}</div>}
+          {error && <div className="form-error" role="alert"><CircleAlert size={16} />{error}</div>}
         </div>
         <footer className="modal-footer"><button className="button ghost" onClick={() => setStep(mode === 'manual' ? 1 : 2)}><ArrowLeft size={16} />返回</button><button className="button ghost" onClick={() => void finish(false)}>保存</button><button className="button primary" onClick={() => void finish(true)}>保存并测活<Check size={16} /></button></footer>
       </>}
@@ -752,6 +783,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
       </div>
       <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || filtering || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || filtering || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span><button type="button" className="button compact site-health-button" title={siteChecking ? '此站点正在测活' : '测活此站点'} disabled={siteChecking} onClick={() => onHealth({ siteId: site.id })}><RefreshCw className={siteChecking ? 'spin' : ''} size={15} /><span>{siteChecking ? '测活中' : '测活'}</span></button><IconButton title="编辑站点" disabled={deleting} onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title={siteChecking ? '测活完成后可删除站点' : deleting ? '正在删除站点' : '删除站点'} disabled={siteChecking || deleting} tone="danger" onClick={onDelete}>{deleting ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}</IconButton></div>
     </header>
+    {site.lastError && <div className="site-sync-warning" role="status" title={site.lastError}><CircleAlert size={15} /><strong>站点信息同步异常</strong><span>{site.lastError}</span><time>{site.lastSyncAt ? `上次同步 ${fmtTime(site.lastSyncAt)}` : '尚无成功同步记录'}</time></div>}
     {siteExpanded && <div className="groups">
       {groups.map((group, groupIndex) => {
         const groupChecking = isHealthActive({ groupId: group.id })
@@ -790,8 +822,17 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [recommended, setRecommended] = useState(false)
   const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [siteIndexQuery, setSiteIndexQuery] = useState('')
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [manualRefreshing, setManualRefreshing] = useState(false)
+  const [compactDensity, setCompactDensity] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try { return window.localStorage.getItem('aimon-density') === 'compact' }
+    catch { return false }
+  })
   const [siteViewPreference, setSiteViewPreference] = useState<SiteViewMode | null>(() => {
     if (typeof window === 'undefined') return null
     try {
@@ -799,7 +840,13 @@ export function App() {
       return stored === 'focus' || stored === 'all' ? stored : null
     } catch { return null }
   })
-  const [focusedSiteId, setFocusedSiteId] = useState<number | null>(null)
+  const [focusedSiteId, setFocusedSiteId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const stored = Number(window.localStorage.getItem('aimon-focused-site'))
+      return Number.isInteger(stored) && stored > 0 ? stored : null
+    } catch { return null }
+  })
   // A focused site can be collapsed manually. Selecting it again from the site
   // index is an explicit request to open it, even when its id did not change.
   // Including this revision in the focused panel key makes that intent reliable
@@ -810,14 +857,15 @@ export function App() {
   const [dragging, setDragging] = useState<{ kind: 'site' | 'group'; id: number } | null>(null)
   const [pendingHealthKeys, setPendingHealthKeys] = useState<Set<string>>(new Set())
   const [deletingSiteIds, setDeletingSiteIds] = useState<Set<number>>(new Set())
+  const [deleteCandidate, setDeleteCandidate] = useState<SiteItem | null>(null)
   const pendingHealthRef = useRef(new Set<string>())
   const trackedJobIdsRef = useRef(new Set<string>())
   const knownJobIdsRef = useRef(new Set<string>())
   const jobsInitializedRef = useRef(false)
   const dashboardEpochRef = useRef(0)
-  const dashboardRequestRef = useRef<Promise<void> | null>(null)
+  const dashboardRequestRef = useRef<Promise<boolean> | null>(null)
   const dashboardAbortRef = useRef<AbortController | null>(null)
-  const jobsRequestRef = useRef<Promise<void> | null>(null)
+  const jobsRequestRef = useRef<Promise<boolean> | null>(null)
   const jobsAbortRef = useRef<AbortController | null>(null)
   const jobsEpochRef = useRef(0)
   const siteReorderRef = useRef(false)
@@ -826,20 +874,23 @@ export function App() {
   const resumeRefreshRef = useRef<() => void>(() => undefined)
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function loadDashboard(silent = false): Promise<void> {
+  function loadDashboard(silent = false): Promise<boolean> {
     if (dashboardRequestRef.current) return dashboardRequestRef.current
     const epoch = dashboardEpochRef.current
     const controller = new AbortController()
     dashboardAbortRef.current = controller
     const request = api.dashboard(controller.signal)
       .then((data) => {
-        if (epoch !== dashboardEpochRef.current) return
-        setDashboard(data)
+        if (epoch !== dashboardEpochRef.current) return false
+        startTransition(() => setDashboard(data))
+        setLastUpdatedAt(Date.now())
         setDashboardError('')
+        return true
       })
       .catch((err) => {
-        if (epoch !== dashboardEpochRef.current || controller.signal.aborted) return
+        if (epoch !== dashboardEpochRef.current || controller.signal.aborted) return false
         setDashboardError(err instanceof Error ? err.message : String(err))
+        return false
       })
       .finally(() => {
         if (dashboardRequestRef.current === request) {
@@ -851,14 +902,14 @@ export function App() {
     return request
   }
 
-  function loadJobs(silent = false): Promise<void> {
+  function loadJobs(silent = false): Promise<boolean> {
     if (jobsRequestRef.current) return jobsRequestRef.current
     const epoch = jobsEpochRef.current
     const controller = new AbortController()
     jobsAbortRef.current = controller
     const request = api.jobs(controller.signal)
       .then((data) => {
-        if (epoch !== jobsEpochRef.current) return
+        if (epoch !== jobsEpochRef.current) return false
         if (!jobsInitializedRef.current) {
           for (const job of data) {
             knownJobIdsRef.current.add(job.id)
@@ -866,12 +917,14 @@ export function App() {
           }
           jobsInitializedRef.current = true
         }
-        setJobs(data)
+        startTransition(() => setJobs(data))
         setJobsError('')
+        return true
       })
       .catch((err) => {
-        if (epoch !== jobsEpochRef.current || controller.signal.aborted) return
+        if (epoch !== jobsEpochRef.current || controller.signal.aborted) return false
         setJobsError(err instanceof Error ? err.message : String(err))
+        return false
       })
       .finally(() => {
         if (jobsRequestRef.current === request) {
@@ -883,8 +936,9 @@ export function App() {
     return request
   }
 
-  async function load(silent = false): Promise<void> {
-    await Promise.all([loadDashboard(silent), loadJobs(silent)])
+  async function load(silent = false): Promise<boolean> {
+    const results = await Promise.all([loadDashboard(silent), loadJobs(silent)])
+    return results.every(Boolean)
   }
 
   function cancelReadRequests(): void {
@@ -898,7 +952,7 @@ export function App() {
     jobsRequestRef.current = null
   }
 
-  function loadFresh(silent = true): Promise<void> {
+  function loadFresh(silent = true): Promise<boolean> {
     cancelReadRequests()
     return load(silent)
   }
@@ -920,6 +974,7 @@ export function App() {
       jobsInitializedRef.current = false
       setPendingHealthKeys(new Set())
       setDeletingSiteIds(new Set())
+      setDeleteCandidate(null)
       setWizard(null)
       setSettingsOpen(false)
       setDashboardError('')
@@ -941,11 +996,17 @@ export function App() {
     window.addEventListener('focus', scheduleResume)
     window.addEventListener('pageshow', scheduleResume)
     window.addEventListener('online', scheduleResume)
+    const online = () => setIsOnline(true)
+    const offline = () => setIsOnline(false)
+    window.addEventListener('online', online)
+    window.addEventListener('offline', offline)
     return () => {
       document.removeEventListener('visibilitychange', scheduleResume)
       window.removeEventListener('focus', scheduleResume)
       window.removeEventListener('pageshow', scheduleResume)
       window.removeEventListener('online', scheduleResume)
+      window.removeEventListener('online', online)
+      window.removeEventListener('offline', offline)
       if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
       resumeTimerRef.current = null
     }
@@ -1070,11 +1131,11 @@ export function App() {
   }
   async function remove(site: SiteItem) {
     if (deletingSiteIds.has(site.id) || isHealthActive({ siteId: site.id })) return
-    if (!window.confirm(`删除站点「${site.name}」及其本地监控数据？远端 API Key 不会删除。`)) return
     setDeletingSiteIds((current) => new Set(current).add(site.id))
     try {
       await api.deleteSite(site.id)
       setToast('站点已删除')
+      setDeleteCandidate(null)
       await loadFresh(false)
     } catch (err) {
       setToast(err instanceof Error ? err.message : String(err))
@@ -1127,6 +1188,7 @@ export function App() {
       jobsInitializedRef.current = false
       setPendingHealthKeys(new Set())
       setDeletingSiteIds(new Set())
+      setDeleteCandidate(null)
       setDashboardError('')
       setJobsError('')
       setWizard(null)
@@ -1152,6 +1214,8 @@ export function App() {
   const activeTargetByModel = useMemo(() => new Map(activeTargets.map((target) => [target.modelId, target])), [activeTargets])
   const activeGroupIds = useMemo(() => new Set(activeTargets.map((target) => target.groupId)), [activeTargets])
   const activeSiteIds = useMemo(() => new Set(activeTargets.map((target) => target.siteId)), [activeTargets])
+  const globalModels = useMemo(() => dashboard?.sites.flatMap((site) => site.groups.flatMap((group) => group.models)) || [], [dashboard?.sites])
+  const globalStatusCounts = useMemo(() => statusCounts(globalModels), [globalModels])
   const isHealthActive = (scope: HealthScope): boolean => {
     if (pendingHealthKeys.has(healthKey(scope))) return true
     if (scope.modelId) return activeTargetByModel.has(scope.modelId)
@@ -1160,7 +1224,7 @@ export function App() {
     return activeJobs.length > 0
   }
   const activeTargetFor = (modelId: number): HealthJobTarget | undefined => activeTargetByModel.get(modelId)
-  const visibleSites = dashboard?.sites.filter((site) => siteHasVisibleModels(site, query, statusFilter)) || []
+  const visibleSites = dashboard?.sites.filter((site) => siteHasVisibleModels(site, deferredQuery, statusFilter)) || []
   const filtering = Boolean(query.trim() || statusFilter !== 'all')
   const siteView = resolveSiteView(dashboard?.sites.length || 0, siteViewPreference)
   const focusedSite = visibleSites.find((site) => site.id === focusedSiteId) || visibleSites[0]
@@ -1179,22 +1243,36 @@ export function App() {
     if (!visibleSites.some((site) => site.id === focusedSiteId)) setFocusedSiteId(visibleSites[0].id)
   }, [visibleSiteKey, focusedSiteId])
   useEffect(() => {
+    if (focusedSiteId == null) return
+    try { window.localStorage.setItem('aimon-focused-site', String(focusedSiteId)) } catch { /* Local preference is optional. */ }
+  }, [focusedSiteId])
+  useEffect(() => {
     if (siteView !== 'all' || !visibleSites.length) return
-    let frame = 0
-    const syncCurrentSite = () => {
-      window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(() => {
-        const siteId = currentViewportSiteId()
-        if (siteId != null) setFocusedSiteId((current) => current === siteId ? current : siteId)
-      })
+    let observer: IntersectionObserver | null = null
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
+    const connect = () => {
+      observer?.disconnect()
+      const marker = window.matchMedia('(max-width: 900px)').matches ? 72 : 140
+      const bottomInset = Math.max(0, window.innerHeight - marker - 2)
+      observer = new IntersectionObserver((entries) => {
+        const current = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => Math.abs(a.boundingClientRect.top - marker) - Math.abs(b.boundingClientRect.top - marker))[0]
+        const siteId = Number((current?.target as HTMLElement | undefined)?.dataset.siteId)
+        if (Number.isFinite(siteId)) setFocusedSiteId((previous) => previous === siteId ? previous : siteId)
+      }, { rootMargin: `-${marker}px 0px -${bottomInset}px 0px`, threshold: 0 })
+      for (const entry of siteWorkspaceRef.current?.querySelectorAll<HTMLElement>('[data-site-id]') || []) observer.observe(entry)
     }
-    syncCurrentSite()
-    window.addEventListener('scroll', syncCurrentSite, { passive: true })
-    window.addEventListener('resize', syncCurrentSite)
+    const reconnect = () => {
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(connect, 100)
+    }
+    connect()
+    window.addEventListener('resize', reconnect)
     return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', syncCurrentSite)
-      window.removeEventListener('resize', syncCurrentSite)
+      if (resizeTimer) clearTimeout(resizeTimer)
+      observer?.disconnect()
+      window.removeEventListener('resize', reconnect)
     }
   }, [siteView, visibleSiteKey])
   useEffect(() => {
@@ -1214,6 +1292,25 @@ export function App() {
   function changeSiteView(mode: SiteViewMode) {
     setSiteViewPreference(mode)
     try { window.localStorage.setItem('aimon-site-view', mode) } catch { /* The view still works for this session. */ }
+  }
+
+  function toggleDensity() {
+    setCompactDensity((current) => {
+      const next = !current
+      try { window.localStorage.setItem('aimon-density', next ? 'compact' : 'comfortable') } catch { /* Local preference is optional. */ }
+      return next
+    })
+  }
+
+  async function refreshPanel() {
+    if (manualRefreshing) return
+    setManualRefreshing(true)
+    try {
+      const succeeded = await loadFresh(false)
+      setToast(succeeded ? '监控数据已刷新' : '部分监控数据刷新失败，请查看页面提示')
+    } finally {
+      setManualRefreshing(false)
+    }
   }
 
   function selectFocusedSite(siteId: number, scroll = true) {
@@ -1326,15 +1423,18 @@ export function App() {
     void loadFresh(false)
   }} />
 
-  return <div className="app-shell">
+  const searchPending = deferredQuery !== query
+  const statusFilterCounts: Record<StatusFilter, number> = { all: globalModels.length, ...globalStatusCounts }
+
+  return <div className={`app-shell ${compactDensity ? 'density-compact' : ''}`}>
     <header className="app-header">
       <div className="brand"><div className="logo-mark"><Activity size={20} /></div><div><strong>AIMon</strong><span>AI RELAY MONITOR</span></div></div>
-      <div className={`runtime-state ${activeJobs.length ? 'busy' : ''}`}><span />{activeJobs.length ? refreshingJobs.length ? '正在同步站点信息' : `正在测活 ${activeCompleted}/${activeTotal}` : '监控就绪'}</div>
-      <div className="app-header-actions"><IconButton title="默认配置" onClick={() => setSettingsOpen(true)}><SettingsIcon size={17} /></IconButton><IconButton title="退出登录" onClick={() => void signOut()}><LogOut size={17} /></IconButton></div>
+      <div className={`runtime-state ${!isOnline ? 'offline' : activeJobs.length ? 'busy' : ''}`}><span />{!isOnline ? '网络离线' : activeJobs.length ? refreshingJobs.length ? '正在同步站点信息' : `正在测活 ${activeCompleted}/${activeTotal}` : '监控就绪'}</div>
+      <div className="app-header-actions"><IconButton title="刷新监控数据" disabled={manualRefreshing} onClick={() => void refreshPanel()}><RefreshCw className={manualRefreshing ? 'spin' : ''} size={17} /></IconButton><span className="density-control"><IconButton title={compactDensity ? '切换为舒适布局' : '切换为紧凑布局'} pressed={compactDensity} onClick={toggleDensity}><Rows3 size={17} /></IconButton></span><IconButton title="默认配置" onClick={() => setSettingsOpen(true)}><SettingsIcon size={17} /></IconButton><IconButton title="退出登录" onClick={() => void signOut()}><LogOut size={17} /></IconButton></div>
     </header>
     <main className="workspace">
       <section className="command-bar">
-        <div><h1>渠道监控</h1><p>站点、分组与模型的实时可用性</p></div>
+        <div><h1>渠道监控</h1><p>站点、分组与模型的实时可用性{lastUpdatedAt && <time dateTime={new Date(lastUpdatedAt).toISOString()}>最近刷新 {new Date(lastUpdatedAt).toLocaleTimeString('zh-CN', { hour12: false })}</time>}</p></div>
         <div className="toolbar"><button className={`button ${recommended ? 'active' : 'ghost'}`} aria-pressed={recommended} onClick={() => setRecommended(!recommended)} title="切换智能推荐排序"><Sparkles size={16} />{recommended ? '恢复手动排序' : '智能推荐'}</button><button className="button ghost" disabled={isHealthActive({})} onClick={() => void health()}><RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活</button><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>
       </section>
       <section className="control-deck">
@@ -1347,17 +1447,17 @@ export function App() {
           <div><RefreshCw size={17} /><span>测活次数</span><strong>{dashboard.settings.healthAttempts}<em> 次 / 模型</em></strong></div>
         </section>
         <section className="filter-bar">
-          <label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索站点、分组或模型" aria-label="搜索站点、分组或模型" />{query && <button type="button" onClick={() => setQuery('')} title="清空搜索" aria-label="清空搜索"><X size={14} /></button>}</label>
+          <label className={`search-box ${searchPending ? 'pending' : ''}`}><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索站点、分组或模型" aria-label="搜索站点、分组或模型" />{query && <button type="button" onClick={() => setQuery('')} title="清空搜索" aria-label="清空搜索"><X size={14} /></button>}</label>
           <div className="status-filter" role="group" aria-label="模型状态筛选">
             {([
               ['all', '全部'], ['failed', '失败'], ['available', '可用'], ['excellent', '优质'], ['pending', '待测'],
             ] as Array<[StatusFilter, string]>).map(([value, label]) =>
-              <button type="button" key={value} aria-pressed={statusFilter === value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>)}
+              <button type="button" key={value} aria-pressed={statusFilter === value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}><span>{label}</span><b>{statusFilterCounts[value]}</b></button>)}
           </div>
           {filtering && <span className="filter-result">显示 {visibleSites.length} / {dashboard.sites.length} 个站点</span>}
         </section>
       </section>
-      {activeJobs.length > 0 && <div className="job-strip" title={activeLabel} aria-live="polite"><LoaderCircle size={16} className="spin" /><span><strong>{refreshingJobs.length ? '同步中' : `${runningTargets.length} 个运行中`}</strong>{!refreshingJobs.length && <> · <strong>{queuedTargets.length}</strong> 个排队中</>}{currentTargetLabel && <em>{currentTargetLabel}</em>}{refreshWarning && <em className="job-warning">{refreshWarning}</em>}</span><div className="job-progress"><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
+      {activeJobs.length > 0 && <div className="job-strip" title={activeLabel} aria-live="polite"><LoaderCircle size={16} className="spin" /><span><strong>{refreshingJobs.length ? '同步中' : `${runningTargets.length} 个运行中`}</strong>{!refreshingJobs.length && <> · <strong>{queuedTargets.length}</strong> 个排队中</>}{currentTargetLabel && <em>{currentTargetLabel}</em>}{refreshWarning && <em className="job-warning">{refreshWarning}</em>}</span><div className="job-progress" role="progressbar" aria-label="测活任务进度" aria-valuemin={0} aria-valuemax={activeTotal} aria-valuenow={activeCompleted}><i style={{ width: `${activeTotal ? activeCompleted / activeTotal * 100 : 0}%` }} /></div><b>{activeCompleted}/{activeTotal}</b></div>}
       {dashboardError && <div className="page-error"><CircleAlert size={18} /><span>监控数据刷新失败：{dashboardError}</span><button onClick={() => { setDashboardError(''); void loadFresh(false) }}>重试</button></div>}
       {jobsError && <div className="page-error page-warning"><CircleAlert size={18} /><span>任务状态刷新失败：{jobsError}</span><button onClick={() => { setJobsError(''); void loadFresh(true) }}>重试</button></div>}
       <section ref={siteWorkspaceRef} className={`site-workspace ${visibleSites.length ? 'has-sites' : ''} ${siteView === 'focus' && visibleSites.length ? 'focus' : 'all'}`}>
@@ -1404,7 +1504,7 @@ export function App() {
           </nav>}
           {displayedSites.map((site) => {
             const index = dashboard.sites.findIndex((item) => item.id === site.id)
-            return <div className="site-entry" data-site-id={site.id} key={siteView === 'focus' ? `focus:${site.id}:${focusRevision}` : `all:${site.id}`} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={query} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} focusedView={siteView === 'focus'} expansionCommand={expansionCommand?.siteIds.includes(site.id) ? expansionCommand : undefined} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => void remove(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
+            return <div className="site-entry" data-site-id={site.id} key={siteView === 'focus' ? `focus:${site.id}:${focusRevision}` : `all:${site.id}`} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={deferredQuery} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} focusedView={siteView === 'focus'} expansionCommand={expansionCommand?.siteIds.includes(site.id) ? expansionCommand : undefined} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => setDeleteCandidate(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
           })}
           {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
           {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}
@@ -1427,6 +1527,10 @@ export function App() {
       }}
     />}
     {settingsOpen && <SettingsModal current={dashboard.settings} onClose={() => setSettingsOpen(false)} onSaved={() => { setToast('默认配置已保存'); void loadFresh(false) }} />}
+    {deleteCandidate && <Modal title="删除站点" closeDisabled={deletingSiteIds.has(deleteCandidate.id)} onClose={() => setDeleteCandidate(null)}>
+      <div className="modal-body delete-confirm"><div className="delete-confirm-icon"><Trash2 size={22} /></div><div><strong>确认删除“{deleteCandidate.name}”？</strong><p>本站的分组、模型和历史测活记录会从 AIMon 删除。远端站点中的 API Key 保持不变。</p></div></div>
+      <footer className="modal-footer"><button type="button" className="button ghost" disabled={deletingSiteIds.has(deleteCandidate.id)} onClick={() => setDeleteCandidate(null)}>取消</button><button type="button" className="button danger" disabled={deletingSiteIds.has(deleteCandidate.id) || isHealthActive({ siteId: deleteCandidate.id })} onClick={() => void remove(deleteCandidate)}>{deletingSiteIds.has(deleteCandidate.id) && <LoaderCircle size={16} className="spin" />}删除站点</button></footer>
+    </Modal>}
     {toast && <div className="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" onClick={() => setToast('')} title="关闭提示" aria-label="关闭提示"><X size={14} /></button></div>}
   </div>
 }

@@ -13,6 +13,7 @@ services:
       AIMON_BASIC_USER: ${AIMON_BASIC_USER:-}
       AIMON_BASIC_PASSWORD: ${AIMON_BASIC_PASSWORD:-}
       REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
+      AIMON_ALLOW_PRIVATE_NETWORK: ${AIMON_ALLOW_PRIVATE_NETWORK:-false}
       CLOAKBROWSER_ENABLED: ${CLOAKBROWSER_ENABLED:-true}
       CLOAKBROWSER_HEADLESS: ${CLOAKBROWSER_HEADLESS:-true}
       CLOAKBROWSER_TIMEOUT_MS: ${CLOAKBROWSER_TIMEOUT_MS:-60000}
@@ -29,7 +30,7 @@ services:
       - ./data:/app/data
       - cloakbrowser-cache:/root/.cloakbrowser
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8787/api/auth/status').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      test: ["CMD", "node", "scripts/healthcheck.mjs"]
       interval: 30s
       timeout: 5s
       retries: 3

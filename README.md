@@ -20,6 +20,7 @@ AIMon 支持 New API、Sub2API、Cloudflare 场景以及不登录站点的手动
 - [指标说明](#指标说明)
 - [Cloudflare 与 CloakBrowser](#cloudflare-与-cloakbrowser)
 - [环境变量](#环境变量)
+- [运维与备份](#运维与备份)
 - [数据与安全](#数据与安全)
 - [常见问题](#常见问题)
 - [本地开发](#本地开发)
@@ -50,6 +51,8 @@ AIMon 使用“**站点 → 分组 → 模型**”三级结构，但只为模型
 
 桌面端左侧站点目录会随页面滚动同步当前站点；单站模式下点击目录会直接切换并展开目标站点。手机和平板使用横向站点选择器和底部固定操作栏，避免站点较多时反复长距离滚动。
 
+状态筛选会直接显示各等级的模型数量；顶部状态区会显示网络、任务进度和最近刷新时间。桌面端可在右上角切换舒适/紧凑密度，偏好只保存在当前浏览器中。站点远端信息同步异常会固定显示在站点行下方，不会只依赖短暂提示。
+
 常用入口：
 
 | 位置 | 作用 |
@@ -61,6 +64,10 @@ AIMon 使用“**站点 → 分组 → 模型**”三级结构，但只为模型
 | “智能推荐” | 按成功率、响应性能与标准倍率重新展示模型顺序 |
 | “单站查看” | 聚焦当前站点；再次选择同一站点会重新展开 |
 | 展开/收起操作栏 | 批量更新站点及其分组，并保持当前阅读位置 |
+| 顶部刷新图标 | 只刷新面板数据和任务状态，不发送模型测活请求 |
+| 右上角密度图标 | 在桌面端切换舒适布局与紧凑布局 |
+
+站点识别、Cloudflare 会话或模型获取耗时较长时，添加站点弹窗会持续显示已等待时间，并允许取消当前探测。配置提交阶段会锁定弹窗，避免保存到一半时产生不明确状态。
 
 ## 工作方式
 
@@ -103,6 +110,12 @@ AIMON_BOOTSTRAP_PASSWORD=首次登录使用的管理密码
 openssl rand -hex 32
 ```
 
+本机已安装 Node.js 22.5+ 时，可在启动前执行一次配置体检。该命令不会输出密码、密钥或代理凭据：
+
+```bash
+npm run doctor
+```
+
 启动服务：
 
 ```bash
@@ -111,9 +124,11 @@ docker compose up -d --build
 
 打开 `http://服务器IP:8787`。
 
-升级时执行：
+Docker Compose 升级前先在容器内创建一致性备份并复制到宿主机，再拉取和重建镜像：
 
 ```bash
+docker compose exec aimon npm run backup -- --data-dir /app/data --output /tmp/aimon-backups
+docker compose cp aimon:/tmp/aimon-backups ./backups
 git pull
 docker compose up -d --build
 ```
@@ -126,6 +141,14 @@ docker compose up -d --build
 2. 打开面板并完成登录，添加一个测试站点后刷新页面，确认配置仍然存在。
 3. 重启或重新部署一次服务，再次确认配置未丢失；这一步能最早发现持久卷挂载错误。
 4. 在公网域名上确认 HTTPS 生效，并检查浏览器没有混合内容警告。
+
+也可以从任意安装了 Node.js 22.5+ 的机器执行自动检查：
+
+```bash
+npm run smoke -- https://aimon.example.com
+```
+
+如果启用了 HTTP Basic Auth，先在执行环境中设置 `AIMON_BASIC_USER` 和 `AIMON_BASIC_PASSWORD`。检查程序只会确认首页、鉴权状态接口、禁止缓存策略和安全响应头，不会读取站点配置或 API Key。
 
 升级前建议先复制完整的 `data/` 目录和当前 `AIMON_SECRET`。升级后若出现异常，可同时恢复二者；只恢复数据库或只恢复密钥都不足以解密原有凭据。
 
@@ -287,6 +310,7 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 | `AIMON_BASIC_USER` | 空 | 可选 HTTP Basic Auth 用户名 |
 | `AIMON_BASIC_PASSWORD` | 空 | 可选 HTTP Basic Auth 密码，必须与用户名同时设置 |
 | `REQUEST_TIMEOUT_MS` | `30000` | 单次远端请求超时，单位毫秒 |
+| `AIMON_ALLOW_PRIVATE_NETWORK` | 生产环境 `false` | 是否允许访问回环、私网和云元数据地址；仅在确需监控受信内网服务时开启 |
 | `CLOAKBROWSER_ENABLED` | `true` | 遇到 Cloudflare challenge 时启用浏览器会话 |
 | `CLOAKBROWSER_HEADLESS` | `true` | 是否使用无头浏览器 |
 | `CLOAKBROWSER_TIMEOUT_MS` | `60000` | 建立浏览器会话和等待 challenge 的超时 |
@@ -298,6 +322,53 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 | `CLOAKBROWSER_LICENSE_KEY` | 空 | 可选 CloakBrowser Pro 授权 |
 
 自动测活间隔和每模型测活次数存储在数据库中，请在页面“默认配置”里修改，而不是通过环境变量配置。
+
+## 运维与备份
+
+### 配置体检
+
+`npm run doctor` 会检查 Node.js 版本、环境变量格式、密钥强度、Basic Auth 配对、`DATA_DIR` 可写性，以及 `.env` / `data/` 是否已被 Git 忽略。建议在首次部署和每次修改环境变量后执行。检查结果中的敏感值始终隐藏。
+
+### 一致性备份
+
+运行中的 SQLite 可能同时存在 WAL 和 SHM 文件，直接单独复制 `aimon.sqlite` 不能保证得到一致快照。仓库提供的备份命令使用 SQLite Backup API 创建一致数据库副本，并复制 `DATA_DIR` 内的 CloakBrowser 会话等辅助文件：
+
+```bash
+npm run backup
+```
+
+默认产物位于 `./backups/aimon-backup-时间/`。也可以指定路径：
+
+```bash
+npm run backup -- --data-dir /app/data --output /tmp/aimon-backups
+```
+
+备份目录必须位于 `DATA_DIR` 之外，避免递归复制和把备份留在同一故障卷。产物中的 `manifest.json` 不包含 `AIMON_SECRET`；请把当时使用的 `AIMON_SECRET` 单独保存在密码管理器中。
+
+Docker Compose 部署可先在容器内生成，再复制到宿主机：
+
+```bash
+docker compose exec aimon npm run backup -- --data-dir /app/data --output /tmp/aimon-backups
+docker compose cp aimon:/tmp/aimon-backups ./backups
+```
+
+### 恢复与回滚
+
+1. 停止 AIMon，避免恢复过程中产生新写入。
+2. 保留当前 `data/` 作为回滚副本。
+3. 将备份目录内容恢复到空的 `DATA_DIR`。
+4. 恢复与该备份配套的 `AIMON_SECRET`。
+5. 启动服务，执行 `npm run smoke -- URL`，再登录确认站点和测活记录。
+
+不要把新数据库与旧 WAL/SHM 文件混用。恢复到空目录可避免 SQLite 读取不属于该快照的日志文件。数据库迁移在启动时自动执行，因此备份可以升级到新版；降级到旧版本前应先确认旧版数据库结构兼容。
+
+### Zeabur 升级清单
+
+1. 确认 `/app/data` 持久卷状态正常，并记录当前部署版本。
+2. 导出一致性备份并单独确认 `AIMON_SECRET` 可取回。
+3. 触发 GitHub 自动部署，等待容器健康检查通过。
+4. 执行烟雾检查并登录确认配置、余额和最近测活记录。
+5. 出现数据库兼容问题时，同时回滚镜像、数据快照和对应密钥。
 
 ## 数据与安全
 
@@ -312,10 +383,11 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 
 - 备份和恢复时应复制整个 `DATA_DIR`。
 - `AIMON_SECRET` 必须与数据库一起备份；更换后旧凭据无法解密。
-- 不要提交 `.env`、`data/` 或浏览器会话到 Git。
+- 不要提交 `.env`、`data/`、`backups/` 或浏览器会话到 Git；仓库已默认忽略这些路径。
 - 公网部署必须使用 HTTPS。
 - 建议额外使用 HTTP Basic Auth、Cloudflare Access、VPN 或反向代理访问控制。
 - AIMon 允许管理员配置任意 Base URL，因此具备访问服务器所在网络的能力。只向可信管理员开放面板，并使用防火墙限制敏感内网。
+- 生产环境默认拦截回环、私网和云元数据地址，降低 SSRF 风险。开启 `AIMON_ALLOW_PRIVATE_NETWORK=true` 后，应通过防火墙进一步隔离云元数据服务和其他敏感网段。
 - 当前并发控制基于单 Node.js 进程。请使用单实例部署，不要让多个副本共享同一个 SQLite 目录。
 
 ## 常见问题
@@ -372,17 +444,19 @@ npm test
 npm run build
 ```
 
+`npm run doctor` 面向部署环境，会读取当前环境变量或项目根目录的 `.env`；未配置生产密钥时返回失败属于预期行为。
+
 生产运行：
 
 ```bash
-AIMON_SECRET=replace-me NODE_ENV=production npm run build
-AIMON_SECRET=replace-me NODE_ENV=production npm start
+npm run build
+AIMON_SECRET=use-the-same-64-character-secret-from-your-password-manager NODE_ENV=production npm start
 ```
 
 Windows PowerShell：
 
 ```powershell
-$env:AIMON_SECRET = "replace-me"
+$env:AIMON_SECRET = "use-the-same-64-character-secret-from-your-password-manager"
 $env:NODE_ENV = "production"
 npm run build
 npm start

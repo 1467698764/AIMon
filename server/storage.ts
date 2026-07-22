@@ -40,6 +40,7 @@ function assertWritable(dataDir: string): void {
 
 export function prepareDataDirectory(dataDir: string, requirePersistentMount: boolean): void {
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 })
+  if (process.platform !== 'win32') fs.chmodSync(dataDir, 0o700)
   assertWritable(dataDir)
 
   if (!requirePersistentMount) return
