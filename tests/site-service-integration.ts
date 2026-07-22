@@ -13,6 +13,7 @@ const {
   discardDraft,
   getDashboard,
   getHealthTargets,
+  getSiteEditor,
   prepareManualSite,
   refreshHealthMetadata,
   saveSettings,
@@ -51,6 +52,8 @@ assert.equal(initial.groups[0].standardRatio, 0.1)
 assert.deepEqual(getHealthTargets({ siteId }).map((target: any) => target.apiKey), [
   'sk-cheap', 'sk-cheap', 'sk-premium', 'sk-premium',
 ])
+assert.doesNotMatch(JSON.stringify(getDashboard()), /sk-cheap|sk-premium/)
+assert.doesNotMatch(JSON.stringify(getSiteEditor(siteId)), /sk-cheap|sk-premium|"apiKey"/)
 
 const edit = await prepareManualSite({
   id: siteId,
@@ -78,6 +81,7 @@ assert.equal(manualRefreshCalls, 0)
 deleteSite(siteId)
 
 saveSettings({ username: 'monitor', password: 'secret', healthAttempts: 4 })
+assert.doesNotMatch(JSON.stringify(getDashboard()), /secret/)
 const autoSiteId = Number(db.prepare(`
   INSERT INTO sites
     (name, base_url, type, balance, currency, recharge_ratio, connection_mode, configured, config_revision, sort_order)

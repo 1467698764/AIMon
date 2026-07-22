@@ -15,6 +15,7 @@ import {
   updateExpanded,
 } from './site-service.js'
 import { hasActiveHealthForSite, listJobs, startHealthCheck } from './health.js'
+import { redactSensitiveText, sensitiveValues } from './privacy.js'
 
 const router = Router()
 
@@ -76,13 +77,14 @@ router.post('/drafts/:id/configure', (req, res) => {
     })).min(1),
   }).parse(req.body)
   const siteId = configureSite(Number(req.params.id), input.selections)
+  const secrets = sensitiveValues(req.body)
   let job
   let healthStartError
   if (input.runHealth) {
     try {
       job = startHealthCheck({ siteId })
     } catch (error) {
-      healthStartError = error instanceof Error ? error.message : String(error)
+      healthStartError = redactSensitiveText(error, secrets)
     }
   }
   let dashboard
@@ -90,7 +92,7 @@ router.post('/drafts/:id/configure', (req, res) => {
   try {
     dashboard = getDashboard()
   } catch (error) {
-    refreshError = error instanceof Error ? error.message : String(error)
+    refreshError = redactSensitiveText(error, secrets)
   }
   res.json({
     ok: true,

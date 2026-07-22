@@ -3,6 +3,7 @@ import { config } from './config.js'
 import { db, nowIso } from './db.js'
 import { extractMessage, remoteFetch } from './http.js'
 import { hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
+import { redactSensitiveText } from './privacy.js'
 import { getHealthTargets, refreshHealthMetadata } from './site-service.js'
 import type { HealthAttempt, HealthStatus } from './types.js'
 
@@ -374,7 +375,9 @@ async function runTarget(
     onAttempt?.(index + 1)
     let endpointTypes: string[] = []
     try { endpointTypes = JSON.parse(target.endpoint_types_json || '[]') } catch { /* Use compatibility probing. */ }
-    attempts.push(await testOnce(target.base_url, target.apiKey, target.model_name, endpointTypes))
+    const attempt = await testOnce(target.base_url, target.apiKey, target.model_name, endpointTypes)
+    if (attempt.error) attempt.error = redactSensitiveText(attempt.error, [target.apiKey])
+    attempts.push(attempt)
   }
   const successes = attempts.filter((attempt) => attempt.ok)
   const status: HealthStatus = successes.length === attemptCount
@@ -431,9 +434,10 @@ function runModelOnce(
   })
   const promise = task()
     .catch((error) => {
+      const message = redactSensitiveText(error, [target.apiKey])
       db.prepare(`UPDATE health_checks SET checked_at = ?, status = 'failed', attempts_json = ? WHERE id = ?`)
-        .run(nowIso(), JSON.stringify([{ ok: false, error: error instanceof Error ? error.message : String(error) }]), checkId)
-      throw error
+        .run(nowIso(), JSON.stringify([{ ok: false, error: message }]), checkId)
+      throw new Error(message)
     })
     .finally(() => {
       if (activeModels.get(signature)?.checkId === checkId) activeModels.delete(signature)
@@ -491,7 +495,7 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
         void refreshHealthMetadata(scope).then((warnings) => {
           if (warnings.length) existing.refreshWarning = [existing.refreshWarning, ...warnings].filter(Boolean).join('；')
         }).catch((error) => {
-          existing.refreshWarning = [existing.refreshWarning, `站点信息同步失败：${error instanceof Error ? error.message : String(error)}`]
+          existing.refreshWarning = [existing.refreshWarning, `站点信息同步失败：${redactSensitiveText(error)}`]
             .filter(Boolean).join('；')
         })
       }
@@ -558,7 +562,7 @@ async function executeHealthJob(
               }
             })
             .catch((error) => {
-              job.refreshWarning = [job.refreshWarning, `站点信息同步失败：${error instanceof Error ? error.message : String(error)}`]
+              job.refreshWarning = [job.refreshWarning, `站点信息同步失败：${redactSensitiveText(error)}`]
                 .filter(Boolean).join('；')
             }))
         }
@@ -590,7 +594,7 @@ async function executeHealthJob(
       job.current = ''
     } catch (error) {
       job.status = 'failed'
-      job.error = error instanceof Error ? error.message : String(error)
+      job.error = redactSensitiveText(error)
       const failure = JSON.stringify([{ ok: false, error: job.error }])
       for (const [index, checkId] of checkIds.entries()) {
         db.prepare(`

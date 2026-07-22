@@ -5,6 +5,7 @@ import { detectAndLoad, getAdapter } from './adapters/index.js'
 import { reconcileSourceGroups } from './group-reconciliation.js'
 import type { StoredGroupIdentity } from './group-reconciliation.js'
 import { normalizeBaseUrl } from './http.js'
+import { redactError, redactSensitiveText } from './privacy.js'
 import type { Credentials, ExistingRemoteKey, RemoteGroup, RemoteModel } from './types.js'
 
 type Row = Record<string, any>
@@ -92,7 +93,12 @@ export async function discoverSite(input: DiscoverInput & { draftId?: number }) 
   if (input.id && !existing) throw new Error('站点不存在')
   const sameOrigin = Boolean(existing && normalizeBaseUrl(existing.base_url) === baseUrl)
   const credentials = effectiveCredentials(sameOrigin ? existing : undefined, input, !sameOrigin)
-  const snapshot = await detectAndLoad(baseUrl, credentials)
+  let snapshot
+  try {
+    snapshot = await detectAndLoad(baseUrl, credentials)
+  } catch (error) {
+    throw redactError(error, [credentials.password])
+  }
   const rechargeRatio = Math.max(0.000001, Number(input.rechargeRatio || existing?.recharge_ratio || 1))
   const usernameEnc = input.useDefaultCredentials === true
     ? null
@@ -220,7 +226,13 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
     }
   }
   const adapter = getAdapter(draft.type)
-  const auth = await adapter.login(draft.base_url, draftCredentials(draft))
+  const credentials = draftCredentials(draft)
+  let auth
+  try {
+    auth = await adapter.login(draft.base_url, credentials)
+  } catch (error) {
+    throw redactError(error, [credentials.password])
+  }
   const groups = all(`
     SELECT * FROM draft_groups WHERE draft_id = ? AND id IN (${groupIds.map(() => '?').join(',') || 'NULL'})
     ORDER BY sort_order, id
@@ -246,13 +258,22 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
       ratioDynamic: Boolean(group.ratio_dynamic),
       platform: group.platform || undefined,
     }
-    const key = await adapter.ensureKey(draft.base_url, auth, remoteGroup, existing)
-    const models = await adapter.listModels(draft.base_url, key.value)
-    if (!models.length) throw new Error(`分组「${group.name}」没有返回任何可用模型`)
+    let keyValue = ''
+    let keyExternalId = ''
+    let models: RemoteModel[]
+    try {
+      const key = await adapter.ensureKey(draft.base_url, auth, remoteGroup, existing)
+      keyValue = key.value
+      keyExternalId = key.externalId
+      models = await adapter.listModels(draft.base_url, keyValue)
+      if (!models.length) throw new Error(`分组「${group.name}」没有返回任何可用模型`)
+    } catch (error) {
+      throw redactError(error, [credentials.password, existing?.value, keyValue])
+    }
 
     transaction(() => {
       db.prepare(`UPDATE draft_groups SET api_key_enc = ?, api_key_external_id = ?, selected = 1 WHERE id = ?`)
-        .run(encrypt(key.value), key.externalId, group.id)
+        .run(encrypt(keyValue), keyExternalId, group.id)
       const sourceModels = source
         ? all('SELECT id, name, selected FROM models WHERE group_id = ?', source.id)
         : []
@@ -301,7 +322,12 @@ export async function prepareManualSite(input: DiscoverInput & { draftId?: numbe
     if (group.id && !source) throw new Error(`分组「${group.name}」无法沿用：Base URL 已变化或分组不属于此站点`)
     const apiKey = group.apiKey?.trim() || decrypt(source?.api_key_enc)
     if (!apiKey) throw new Error(`请填写分组「${group.name}」的 API Key`)
-    const models = await adapter.listModels(baseUrl, apiKey)
+    let models: RemoteModel[]
+    try {
+      models = await adapter.listModels(baseUrl, apiKey)
+    } catch (error) {
+      throw redactError(error, [apiKey])
+    }
     if (!models.length) throw new Error(`分组「${group.name}」没有返回任何可用模型`)
     return { input: group, source, apiKey, models, index }
   })
@@ -519,9 +545,11 @@ async function refreshSiteMetadata(site: Row, groupId: number | undefined, inclu
   if ((site.connection_mode || 'auto') !== 'auto') return null
   const previous = metadataRefreshQueues.get(Number(site.id)) || Promise.resolve(null)
   const refresh = previous.catch(() => null).then(async () => {
+    let credentials: Credentials | undefined
     try {
       const adapter = getAdapter(site.type)
-      const auth = await adapter.login(site.base_url, effectiveCredentials(site))
+      credentials = effectiveCredentials(site)
+      const auth = await adapter.login(site.base_url, credentials)
       const snapshot = await adapter.snapshot(site.base_url, auth)
       const storedGroups = all('SELECT * FROM site_groups WHERE site_id = ? ORDER BY sort_order, id', site.id)
       const sources = reconcileSourceGroups(
@@ -569,7 +597,7 @@ async function refreshSiteMetadata(site: Row, groupId: number | undefined, inclu
       if (!matchedRequestedGroup) return `站点「${site.name}」未能匹配当前分组，已使用原倍率继续测活`
       return null
     } catch (error) {
-      return `站点「${site.name}」同步失败，已使用原数据继续测活：${error instanceof Error ? error.message : String(error)}`
+      return `站点「${site.name}」同步失败，已使用原数据继续测活：${redactSensitiveText(error, [credentials?.password])}`
     }
   })
   metadataRefreshQueues.set(Number(site.id), refresh)

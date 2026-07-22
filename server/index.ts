@@ -7,6 +7,7 @@ import authRoutes from './auth-routes.js'
 import { AuthError, requireAppAuth } from './auth.js'
 import routes from './routes.js'
 import { startAutoHealthScheduler } from './health.js'
+import { redactSensitiveText, sensitiveValues } from './privacy.js'
 
 export const app = express()
 app.disable('x-powered-by')
@@ -78,7 +79,7 @@ if (config.isProduction) {
   })
 }
 
-const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error instanceof ZodError) {
     res.status(400).json({ error: error.issues[0]?.message || '请求参数错误' })
     return
@@ -87,8 +88,9 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(error.status).json({ error: error.message })
     return
   }
-  const message = error instanceof Error ? error.message : '服务器内部错误'
-  console.error(error)
+  const secrets = sensitiveValues(req.body)
+  const message = redactSensitiveText(error instanceof Error ? error.message : '服务器内部错误', secrets)
+  console.error(redactSensitiveText(error instanceof Error ? error.stack || error.message : error, secrets))
   res.status(500).json({ error: message })
 }
 app.use(errorHandler)
