@@ -5,9 +5,19 @@ function positiveNumber(value: string | undefined, fallback: number, minimum: nu
   return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback
 }
 
-function integerInRange(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
-  const parsed = Number(value ?? fallback)
-  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback
+function strictIntegerInRange(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (!value) return fallback
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
+  }
+  return parsed
 }
 
 const isProduction = process.env.NODE_ENV === 'production'
@@ -23,7 +33,7 @@ const bootstrapPassword = process.env.AIMON_BOOTSTRAP_PASSWORD || ''
 const requirePersistentData = process.env.REQUIRE_PERSISTENT_DATA === 'true'
 
 export const config = {
-  port: integerInRange(process.env.PORT, 8787, 1, 65_535),
+  port: strictIntegerInRange('PORT', process.env.PORT, 8787, 1, 65_535),
   dataDir: path.resolve(process.env.DATA_DIR || './data'),
   secret,
   requestTimeoutMs: positiveNumber(process.env.REQUEST_TIMEOUT_MS, 30_000, 1_000),
@@ -31,6 +41,7 @@ export const config = {
   basicAuthPassword,
   bootstrapPassword,
   requirePersistentData,
+  trustProxy: strictIntegerInRange('AIMON_TRUST_PROXY', process.env.AIMON_TRUST_PROXY, 1, 0, 10),
   allowPrivateNetwork: process.env.AIMON_ALLOW_PRIVATE_NETWORK === 'true' || !isProduction,
   cloakBrowserEnabled: process.env.CLOAKBROWSER_ENABLED !== 'false',
   cloakBrowserHeadless: process.env.CLOAKBROWSER_HEADLESS !== 'false',

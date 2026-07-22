@@ -303,6 +303,7 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `PORT` | `8787` | HTTP 服务端口 |
+| `AIMON_TRUST_PROXY` | `1` | 可信反向代理跳数；直连设 `0`，单层反代设 `1`，多层按实际可信跳数设置 |
 | `DATA_DIR` | `./data` | SQLite、草稿和 CloakBrowser 站点会话目录 |
 | `REQUIRE_PERSISTENT_DATA` | 本地 `false`，镜像 `true` | 要求 `DATA_DIR` 位于 Linux 独立挂载卷 |
 | `AIMON_SECRET` | 仅开发环境有回退值 | 本地敏感字段加密密钥；生产必须设置且不可随意更换 |
@@ -327,7 +328,7 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 
 ### 配置体检
 
-`npm run doctor` 会检查 Node.js 版本、环境变量格式、密钥强度、Basic Auth 配对、`DATA_DIR` 可写性，以及 `.env` / `data/` 是否已被 Git 忽略。建议在首次部署和每次修改环境变量后执行。检查结果中的敏感值始终隐藏。
+`npm run doctor` 会检查 Node.js 版本、环境变量格式、密钥强度、Basic Auth 配对、反向代理跳数、`DATA_DIR` 可写性，以及 `.env` / `data/` 是否已被 Git 忽略。建议在首次部署和每次修改环境变量后执行。生产镜像不包含仓库元数据时，Git 忽略规则会显示为提示而不是误报失败；检查结果中的敏感值始终隐藏。
 
 ### 一致性备份
 
@@ -337,7 +338,7 @@ TTFT 只适用于能够观察到文本流的请求。非流式请求、Embedding
 npm run backup
 ```
 
-默认产物位于 `./backups/aimon-backup-时间/`。也可以指定路径：
+默认产物位于 `./backups/aimon-backup-时间-随机后缀/`。备份会先写入临时目录，数据库、辅助文件和清单全部完成后再原子发布，因此并发执行不会互相覆盖，失败的半成品也不会伪装成完整备份。也可以指定路径：
 
 ```bash
 npm run backup -- --data-dir /app/data --output /tmp/aimon-backups

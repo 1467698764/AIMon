@@ -72,6 +72,7 @@ if (process.env.AIMON_ALLOW_PRIVATE_NETWORK === 'true') {
 }
 
 checkInteger('PORT', 8787, 1, 65535)
+checkInteger('AIMON_TRUST_PROXY', 1, 0, 10)
 checkInteger('REQUEST_TIMEOUT_MS', 30000, 1000, 600000)
 checkInteger('CLOAKBROWSER_TIMEOUT_MS', 60000, 10000, 600000)
 checkInteger('CLOAKBROWSER_IDLE_MS', 180000, 60000, 86400000)
@@ -89,7 +90,9 @@ try {
 }
 
 const gitignore = fs.existsSync(path.join(cwd, '.gitignore')) ? fs.readFileSync(path.join(cwd, '.gitignore'), 'utf8') : ''
-if (/^\.env\s*$/m.test(gitignore) && /^data\/\s*$/m.test(gitignore) && /^backups\/\s*$/m.test(gitignore)) {
+if (!gitignore) {
+  warn('.gitignore is unavailable in this runtime image; repository ignore rules were not checked')
+} else if (/^\.env\s*$/m.test(gitignore) && /^data\/\s*$/m.test(gitignore) && /^backups\/\s*$/m.test(gitignore)) {
   pass('.gitignore protects .env, data/, and backups/')
 } else {
   error('.gitignore must exclude .env, data/, and backups/')

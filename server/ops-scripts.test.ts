@@ -43,6 +43,23 @@ describe('operations scripts', () => {
     expect(`${result.stdout}${result.stderr}`).not.toContain('doctor-password')
   })
 
+  it('keeps doctor usable in a runtime image that does not contain repository metadata', () => {
+    const runtimeRoot = temporaryDirectory()
+    const result = spawnSync(process.execPath, [path.join(projectRoot, 'scripts/doctor.mjs')], {
+      cwd: runtimeRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        AIMON_SECRET: 'runtime-secret-0123456789abcdef0123456789',
+        AIMON_BOOTSTRAP_PASSWORD: 'runtime-password',
+        DATA_DIR: path.join(runtimeRoot, 'data'),
+      },
+    })
+
+    expect(result.status).toBe(0)
+    expect(`${result.stdout}${result.stderr}`).toContain('.gitignore is unavailable')
+  })
+
   it('creates a readable SQLite snapshot without embedding AIMON_SECRET', () => {
     const root = temporaryDirectory()
     const dataDir = path.join(root, 'data')
@@ -73,6 +90,33 @@ describe('operations scripts', () => {
     const manifest = fs.readFileSync(path.join(backupDirectory, 'manifest.json'), 'utf8')
     expect(manifest).toContain('"includesEncryptionSecret": false')
     expect(manifest).not.toContain('must-not-enter-backup')
+  })
+
+  it('creates separate, complete destinations for concurrent backups', async () => {
+    const root = temporaryDirectory()
+    const dataDir = path.join(root, 'data')
+    const outputDir = path.join(root, 'backups')
+    fs.mkdirSync(dataDir)
+    execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      "import { DatabaseSync } from 'node:sqlite'; const db = new DatabaseSync(process.argv[1]); db.exec('CREATE TABLE sample (value TEXT)'); db.close()",
+      path.join(dataDir, 'aimon.sqlite'),
+    ])
+
+    const command = [path.join(projectRoot, 'scripts/backup.mjs'), '--data-dir', dataDir, '--output', outputDir]
+    await Promise.all([
+      execFileAsync(process.execPath, command, { cwd: projectRoot }),
+      execFileAsync(process.execPath, command, { cwd: projectRoot }),
+    ])
+
+    const entries = fs.readdirSync(outputDir)
+    expect(entries).toHaveLength(2)
+    expect(entries.every((entry) => entry.startsWith('aimon-backup-'))).toBe(true)
+    for (const entry of entries) {
+      expect(fs.existsSync(path.join(outputDir, entry, 'aimon.sqlite'))).toBe(true)
+      expect(fs.existsSync(path.join(outputDir, entry, 'manifest.json'))).toBe(true)
+    }
   })
 
   it('checks the API, application shell, caching, and security headers', async () => {
@@ -134,5 +178,37 @@ describe('operations scripts', () => {
     } finally {
       await new Promise<void>((resolve, reject) => server.close((cause) => cause ? reject(cause) : resolve()))
     }
+  })
+
+  it('fails the healthcheck immediately when PORT is invalid', () => {
+    const result = spawnSync(process.execPath, ['scripts/healthcheck.mjs'], {
+      cwd: projectRoot,
+      env: { ...process.env, PORT: 'invalid' },
+    })
+    expect(result.status).toBe(1)
+  })
+
+  it('fails server configuration fast when PORT is invalid', () => {
+    const result = spawnSync(process.execPath, [
+      '--import', 'tsx', '--input-type=module', '-e', "await import('./server/config.ts')",
+    ], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, PORT: 'invalid' },
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('PORT must be an integer')
+  })
+
+  it('accepts an explicit reverse-proxy hop count', () => {
+    const result = spawnSync(process.execPath, [
+      '--import', 'tsx', '--input-type=module', '-e', "const { config } = await import('./server/config.ts'); console.log(config.trustProxy)",
+    ], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, AIMON_TRUST_PROXY: '2' },
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe('2')
   })
 })

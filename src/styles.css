@@ -33,10 +33,10 @@
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #b8c4d2; background-clip: padding-box; }
 *::-webkit-scrollbar-track { background: transparent; }
-html { min-width: 320px; background: var(--canvas); }
+html { min-width: 0; background: var(--canvas); }
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background: var(--canvas);
 }
@@ -298,7 +298,6 @@ a { color: inherit; }
 .site-index-status.checking { background: #246bfd; box-shadow: 0 0 0 3px rgba(36,107,253,.12); animation: pulse 1.2s infinite; }
 .site-index-empty { padding: 24px 12px; color: #7d899b; font-size: 11px; line-height: 1.5; text-align: center; }
 .site-list { min-width: 0; padding-top: 14px; }
-.site-entry { contain: layout style; }
 .site-entry:not(:has(.groups)) { content-visibility: auto; contain-intrinsic-block-size: 78px; }
 .site-list > .site-entry + .site-entry { margin-top: 0; }
 .site-context-bar {
@@ -987,6 +986,30 @@ a { color: inherit; }
 }
 
 @media (max-width: 420px) {
+  /* Keep the magnetic command bar immediately understandable on phones.
+     The full accessible names remain in the DOM; only the visual copy is
+     shortened so all primary actions fit without a hidden horizontal swipe. */
+  .site-context-bar .context-actions { overflow-x: hidden; }
+  .site-context-bar .context-actions button {
+    min-width: 0;
+    flex: 1 1 0;
+    gap: 4px;
+    padding-inline: 5px;
+    font-size: 0;
+  }
+  .site-context-bar .context-actions button::after { font-size: 10px; }
+  .site-workspace.all .context-actions button:nth-child(1)::after { content: "聚焦"; }
+  .site-workspace.all .context-actions button:nth-child(2)::after { content: "展开"; }
+  .site-workspace.all .context-actions button:nth-child(3)::after { content: "收起"; }
+  .site-workspace.focus .context-actions button:nth-child(1),
+  .site-workspace.focus .context-actions button:nth-child(2),
+  .site-workspace.focus .context-actions .context-separator { display: none; }
+  .site-workspace.focus .context-actions button:nth-child(4)::after { content: "全部"; }
+  .site-workspace.focus .context-actions button:nth-child(5)::after { content: "展开"; }
+  .site-workspace.focus .context-actions button:nth-child(6)::after { content: "收起"; }
+}
+
+@media (max-width: 420px) {
   .runtime-state { padding-inline: 8px; }
   .app-header-actions { gap: 1px; }
   .site-name-line h2 { font-size: 16px; }
@@ -995,10 +1018,41 @@ a { color: inherit; }
 }
 
 @media (max-width: 360px) {
+  .app-header { gap: 6px; }
+  .brand > div:last-child { display: none; }
+  .runtime-state {
+    min-width: 0;
+    max-width: 112px;
+    flex: 0 1 auto;
+    overflow: hidden;
+    padding-inline: 6px;
+    white-space: nowrap;
+  }
   .status-filter button { min-width: 0; flex-basis: 54px; padding-inline: 3px; }
+  .summary-strip strong { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .summary-strip em { display: none; }
+  .site-header, .site-workspace.focus .site-header { grid-template-columns: 36px minmax(0,1fr) auto; gap: 5px; padding-inline: 2px 5px; }
+  .site-reorder, .collapse { width: 36px; }
+  .site-actions > .icon-button,
+  .site-actions .site-health-button { width: 36px; height: 38px; min-height: 38px; }
   .site-facts, .site-workspace.focus .site-facts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .site-facts { margin-left: 36px; }
   .site-facts > div:nth-child(3) { border-top: 1px solid #e6ebf1; border-left: 0; }
   .site-facts > div:nth-child(4) { border-top: 1px solid #e6ebf1; }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .site-workspace.has-sites { grid-template-columns: 220px minmax(0,1fr); gap: 10px; }
+  .site-workspace.focus .site-context-bar { gap: 6px; }
+  .site-workspace.focus .context-heading { display: none; }
+  .site-workspace.focus .context-actions {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .site-workspace.focus .context-actions button { flex: 1 0 auto; }
+  .model-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
 @media (min-width: 901px) {
@@ -1012,6 +1066,11 @@ a { color: inherit; }
   .density-compact .model-card-header { min-height: 54px; padding-block: 8px 5px; }
   .density-compact .model-metric { min-height: 43px; padding-block: 5px; }
   .density-compact .model-card-footer { min-height: 40px; }
+}
+
+@media (min-width: 1200px) {
+  .model-grid,
+  .density-compact .model-grid { grid-template-columns: repeat(3,minmax(0,360px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

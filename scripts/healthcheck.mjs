@@ -8,7 +8,10 @@ if (user && password) {
 }
 
 try {
-  const response = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}/api/auth/status`, {
+  const rawPort = process.env.PORT || '8787'
+  const port = Number(rawPort)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('Invalid PORT')
+  const response = await fetch(`http://127.0.0.1:${port}/api/auth/status`, {
     headers,
     signal: AbortSignal.timeout(4_000),
   })

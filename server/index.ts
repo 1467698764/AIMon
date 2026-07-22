@@ -11,7 +11,7 @@ import { redactSensitiveText, sensitiveValues } from './privacy.js'
 
 export const app = express()
 app.disable('x-powered-by')
-app.set('trust proxy', 1)
+app.set('trust proxy', config.trustProxy)
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
@@ -98,6 +98,14 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     }
     if (error.type === 'entity.too.large') {
       res.status(413).json({ error: 'Request body is too large' })
+      return
+    }
+  }
+  if (error && typeof error === 'object') {
+    const candidate = error as { type?: unknown; status?: unknown; statusCode?: unknown }
+    const status = Number(candidate.status ?? candidate.statusCode)
+    if (typeof candidate.type === 'string' && Number.isInteger(status) && status >= 400 && status < 500) {
+      res.status(status).json({ error: status === 415 ? 'Unsupported request body encoding' : 'Invalid request body' })
       return
     }
   }

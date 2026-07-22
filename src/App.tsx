@@ -1,4 +1,5 @@
-import { startTransition, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Activity, ArrowLeft, ArrowRight, Bot, Check, ChevronDown, ChevronRight,
   ChevronsDown, ChevronsUp, CircleAlert, GripVertical, Layers3, List, LoaderCircle, LockKeyhole, LogOut, MoveDown, MoveUp, PanelLeft, Pencil, Plus,
@@ -21,17 +22,20 @@ export function resolveSiteView(siteCount: number, preference: SiteViewMode | nu
   return preference || (siteCount > 6 ? 'focus' : 'all')
 }
 
-function statusCounts(models: ModelItem[]) {
-  return {
-    excellent: models.filter((model) => model.status === 'excellent').length,
-    available: models.filter((model) => model.status === 'available').length,
-    failed: models.filter((model) => model.status === 'failed').length,
-    pending: models.filter((model) => model.status === 'pending').length,
-  }
+const noActiveModelIds: ReadonlySet<number> = new Set()
+
+export function effectiveModelStatus(model: ModelItem, activeModelIds: ReadonlySet<number> = noActiveModelIds): HealthStatus {
+  return activeModelIds.has(model.id) ? 'pending' : model.status
 }
 
-function HealthBreakdown({ models }: { models: ModelItem[] }) {
-  const counts = statusCounts(models)
+export function statusCounts(models: ModelItem[], activeModelIds: ReadonlySet<number> = noActiveModelIds) {
+  const counts = { excellent: 0, available: 0, failed: 0, pending: 0 }
+  for (const model of models) counts[effectiveModelStatus(model, activeModelIds)] += 1
+  return counts
+}
+
+function HealthBreakdown({ models, activeModelIds = noActiveModelIds }: { models: ModelItem[]; activeModelIds?: ReadonlySet<number> }) {
+  const counts = statusCounts(models, activeModelIds)
   const label = `优质 ${counts.excellent}，可用 ${counts.available}，失败 ${counts.failed}，待测 ${counts.pending}`
   return <div className="health-breakdown" aria-label={label} title={label}>
     {counts.excellent > 0 && <span className="excellent"><i />{counts.excellent}</span>}
@@ -41,11 +45,37 @@ function HealthBreakdown({ models }: { models: ModelItem[] }) {
   </div>
 }
 
-function matchesModel(model: ModelItem, statusFilter: StatusFilter): boolean {
-  return statusFilter === 'all' || model.status === statusFilter
+export function summarizeHealthTargets(
+  targets: readonly HealthJobTarget[],
+  formatter: (target: HealthJobTarget) => string = (target) => target.label,
+  limit = 3,
+): string {
+  const visible = targets.slice(0, Math.max(0, limit)).map(formatter)
+  const remaining = targets.length - visible.length
+  return `${visible.join('；')}${remaining > 0 ? `；另有 ${remaining} 个目标` : ''}`
 }
 
-export function siteHasVisibleModels(site: SiteItem, query: string, statusFilter: StatusFilter): boolean {
+function summarizeRefreshingJobs(jobs: readonly HealthJob[]): string {
+  const labels: string[] = []
+  let total = 0
+  for (const job of jobs) {
+    total += job.targets?.length || 0
+    if (labels.length < 3) {
+      for (const target of job.targets || []) {
+        labels.push(target.label)
+        if (labels.length === 3) break
+      }
+    }
+  }
+  const remaining = total - labels.length
+  return `${labels.join('；')}${remaining > 0 ? `；另有 ${remaining} 个目标` : ''}`
+}
+
+function matchesModel(model: ModelItem, statusFilter: StatusFilter, activeModelIds: ReadonlySet<number> = noActiveModelIds): boolean {
+  return statusFilter === 'all' || effectiveModelStatus(model, activeModelIds) === statusFilter
+}
+
+export function siteHasVisibleModels(site: SiteItem, query: string, statusFilter: StatusFilter, activeModelIds: ReadonlySet<number> = noActiveModelIds): boolean {
   const normalized = query.trim().toLowerCase()
   if (!normalized && statusFilter === 'all') return true
   const siteMatches = !normalized || `${site.name} ${site.baseUrl}`.toLowerCase().includes(normalized)
@@ -54,13 +84,15 @@ export function siteHasVisibleModels(site: SiteItem, query: string, statusFilter
   return site.groups.some((group) => {
     const groupMatches = siteMatches || group.name.toLowerCase().includes(normalized)
     return group.models.some((model) =>
-      matchesModel(model, statusFilter) && (groupMatches || model.name.toLowerCase().includes(normalized)))
+      matchesModel(model, statusFilter, activeModelIds) && (groupMatches || model.name.toLowerCase().includes(normalized)))
   })
 }
 
-function fmtMs(value: number | null): string {
+export function fmtMs(value: number | null): string {
   if (value == null) return '--'
-  return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`
+  if (value < 1000) return `${Math.round(value)}ms`
+  const precision = Number.isInteger(value / 10) ? 2 : 3
+  return `${(value / 1000).toFixed(precision)}s`
 }
 
 type LatencyMetric = 'ttfb' | 'total' | 'ttft'
@@ -205,13 +237,13 @@ function Modal({ title, children, onClose, wide = false, closeDisabled = false }
       previous?.focus()
     }
   }, [closeDisabled])
-  return (
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !closeDisabled && onClose()}>
       <section ref={modalRef} tabIndex={-1} className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header className="modal-header"><h2 id={titleId} title={title}>{title}</h2><IconButton title={closeDisabled ? '操作完成后可关闭' : '关闭'} disabled={closeDisabled} onClick={onClose}><X size={18} /></IconButton></header>
         {children}
       </section>
-    </div>
+    </div>, document.body,
   )
 }
 
@@ -348,8 +380,16 @@ function Steps({ step, manual }: { step: number; manual: boolean }) {
 
 type ManualGroupForm = { clientId: string; id?: number; name: string; ratio: number; apiKey: string; hasKey: boolean }
 
+let manualGroupSequence = 0
+
+export function createManualGroupClientId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  manualGroupSequence += 1
+  return `manual-group-${Date.now().toString(36)}-${manualGroupSequence.toString(36)}`
+}
+
 function emptyManualGroup(): ManualGroupForm {
-  return { clientId: crypto.randomUUID(), name: '', ratio: 1, apiKey: '', hasKey: false }
+  return { clientId: createManualGroupClientId(), name: '', ratio: 1, apiKey: '', hasKey: false }
 }
 
 function comparableBaseUrl(value: string): string {
@@ -625,17 +665,19 @@ function ModelTable({ group, recommended, onHealth, activeTargetFor }: {
   </>
 }
 
-function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, focusedView, expansionCommand, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
+function SitePanel({ site, recommended, query, statusFilter, activeModelIds, siteDragEnabled, focusedView, expansionCommand, onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onMoveSite, siteIndex, siteCount, dragging, setDragging }: {
   site: SiteItem; recommended: boolean; onEdit: () => void; onDelete: () => void;
   deleting: boolean;
   onHealth: (scope: HealthScope) => void; isHealthActive: (scope: HealthScope) => boolean; activeTargetFor: (modelId: number) => HealthJobTarget | undefined; onChanged: () => void; onError: (message: string) => void; onMoveSite: (delta: number) => void; siteIndex: number; siteCount: number;
-  query: string; statusFilter: StatusFilter;
+  query: string; statusFilter: StatusFilter; activeModelIds: ReadonlySet<number>;
   siteDragEnabled: boolean;
   focusedView: boolean;
   expansionCommand?: { revision: number; expanded: boolean };
   dragging: { kind: 'site' | 'group'; id: number } | null; setDragging: (value: { kind: 'site' | 'group'; id: number } | null) => void
 }) {
-  const [localGroups, setLocalGroups] = useState(site.groups)
+  const [localGroups, setLocalGroups] = useState(() => focusedView
+    ? site.groups.map((group) => ({ ...group, expanded: true }))
+    : site.groups)
   const [siteExpanded, setSiteExpanded] = useState(focusedView || site.expanded)
   const groupMutationRef = useRef(false)
   const siteToggleRef = useRef(false)
@@ -644,9 +686,12 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
   const groupExpandedOverridesRef = useRef(new Map<number, boolean>())
   useEffect(() => {
     if (groupMutationRef.current) return
-    setLocalGroups(site.groups.map((group) => {
+    setLocalGroups((current) => site.groups.map((group) => {
       const desired = groupExpandedOverridesRef.current.get(group.id)
-      if (desired == null) return group
+      if (desired == null) {
+        const local = current.find((item) => item.id === group.id)
+        return focusedView ? { ...group, expanded: local?.expanded ?? true } : group
+      }
       if (group.expanded === desired) {
         groupExpandedOverridesRef.current.delete(group.id)
         return group
@@ -670,7 +715,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
       siteExpandedOverrideRef.current = null
       groupExpandedOverridesRef.current.clear()
       setSiteExpanded(focusedView || site.expanded)
-      setLocalGroups(site.groups)
+      setLocalGroups(focusedView ? site.groups.map((group) => ({ ...group, expanded: true })) : site.groups)
       return
     }
     siteExpandedOverrideRef.current = expansionCommand.expanded
@@ -689,7 +734,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
   const groups = orderedGroups.map((group): GroupItem | null => {
     const groupMatches = siteMatches || group.name.toLowerCase().includes(normalizedQuery)
     const models = group.models.filter((model) =>
-      matchesModel(model, statusFilter) && (groupMatches || model.name.toLowerCase().includes(normalizedQuery)))
+      matchesModel(model, statusFilter, activeModelIds) && (groupMatches || model.name.toLowerCase().includes(normalizedQuery)))
     if (filtering && !models.length && !(statusFilter === 'all' && groupMatches)) return null
     return {
       ...group,
@@ -778,7 +823,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
       <div className="site-facts">
         <div><small>账户余额</small><strong>{site.balanceKnown ? fmtCurrency(site.balance, site.currency) : '--'}</strong></div>
         <div><small>监控范围</small><strong>{site.groups.length}<em> 组</em> / {site.groups.reduce((sum, group) => sum + group.models.length, 0)}<em> 模型</em></strong></div>
-        <div><small>健康分布</small><HealthBreakdown models={siteModels} /></div>
+        <div><small>健康分布</small><HealthBreakdown models={siteModels} activeModelIds={activeModelIds} /></div>
         <div><small>最近测活</small><span>{fmtTime(site.lastCheckAt)}</span></div>
       </div>
       <div className="site-actions"><span className="mobile-order"><IconButton title="站点上移" disabled={recommended || filtering || siteIndex === 0} onClick={() => onMoveSite(-1)}><MoveUp size={15} /></IconButton><IconButton title="站点下移" disabled={recommended || filtering || siteIndex === siteCount - 1} onClick={() => onMoveSite(1)}><MoveDown size={15} /></IconButton></span><button type="button" className="button compact site-health-button" title={siteChecking ? '此站点正在测活' : '测活此站点'} disabled={siteChecking} onClick={() => onHealth({ siteId: site.id })}><RefreshCw className={siteChecking ? 'spin' : ''} size={15} /><span>{siteChecking ? '测活中' : '测活'}</span></button><IconButton title="编辑站点" disabled={deleting} onClick={onEdit}><Pencil size={16} /></IconButton><IconButton title={siteChecking ? '测活完成后可删除站点' : deleting ? '正在删除站点' : '删除站点'} disabled={siteChecking || deleting} tone="danger" onClick={onDelete}>{deleting ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}</IconButton></div>
@@ -798,7 +843,7 @@ function SitePanel({ site, recommended, query, statusFilter, siteDragEnabled, fo
             <span>分组倍率 <b>{group.ratioDynamic ? '自动' : `x${group.ratio}`}</b></span>
             <span>标准倍率 <b className="standard-ratio">{group.standardRatio == null ? '--' : `x${group.standardRatio.toFixed(3)}`}</b></span>
             <span>{group.models.length} 个模型</span>
-            <HealthBreakdown models={group.models} />
+            <HealthBreakdown models={group.models} activeModelIds={activeModelIds} />
           </div>
           <div className="group-actions"><span className="mobile-order"><IconButton title="分组上移" disabled={recommended || filtering || groupIndex === 0} onClick={() => void moveGroup(groupIndex, -1)}><MoveUp size={14} /></IconButton><IconButton title="分组下移" disabled={recommended || filtering || groupIndex === groups.length - 1} onClick={() => void moveGroup(groupIndex, 1)}><MoveDown size={14} /></IconButton></span><button type="button" className="button compact group-health-button" title={groupChecking ? '此分组正在测活' : '测活此分组'} disabled={groupChecking} onClick={() => onHealth({ groupId: group.id })}><RefreshCw className={groupChecking ? 'spin' : ''} size={15} /><span>{groupChecking ? '测活中' : '测活分组'}</span></button></div>
         </header>
@@ -868,9 +913,14 @@ export function App() {
   const jobsRequestRef = useRef<Promise<boolean> | null>(null)
   const jobsAbortRef = useRef<AbortController | null>(null)
   const jobsEpochRef = useRef(0)
+  const freshRequestRef = useRef<Promise<boolean> | null>(null)
+  const freshQueuedRef = useRef(false)
+  const freshSilentRef = useRef(true)
+  const refreshCancellationEpochRef = useRef(0)
   const siteReorderRef = useRef(false)
   const siteWorkspaceRef = useRef<HTMLElement | null>(null)
   const siteIndexListRef = useRef<HTMLElement | null>(null)
+  const siteScrollLockRef = useRef<{ siteId: number; until: number } | null>(null)
   const resumeRefreshRef = useRef<() => void>(() => undefined)
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -882,7 +932,7 @@ export function App() {
     const request = api.dashboard(controller.signal)
       .then((data) => {
         if (epoch !== dashboardEpochRef.current) return false
-        startTransition(() => setDashboard(data))
+        setDashboard(data)
         setLastUpdatedAt(Date.now())
         setDashboardError('')
         return true
@@ -917,7 +967,7 @@ export function App() {
           }
           jobsInitializedRef.current = true
         }
-        startTransition(() => setJobs(data))
+        setJobs(data)
         setJobsError('')
         return true
       })
@@ -942,6 +992,9 @@ export function App() {
   }
 
   function cancelReadRequests(): void {
+    refreshCancellationEpochRef.current += 1
+    freshQueuedRef.current = false
+    freshSilentRef.current = true
     dashboardEpochRef.current += 1
     jobsEpochRef.current += 1
     dashboardAbortRef.current?.abort()
@@ -953,8 +1006,28 @@ export function App() {
   }
 
   function loadFresh(silent = true): Promise<boolean> {
-    cancelReadRequests()
-    return load(silent)
+    freshQueuedRef.current = true
+    freshSilentRef.current = freshSilentRef.current && silent
+    if (freshRequestRef.current) return freshRequestRef.current
+
+    const run = (async () => {
+      let succeeded = true
+      while (freshQueuedRef.current) {
+        freshQueuedRef.current = false
+        const cycleSilent = freshSilentRef.current
+        freshSilentRef.current = true
+        const cancellationEpoch = refreshCancellationEpochRef.current
+        const pendingReads = [dashboardRequestRef.current, jobsRequestRef.current].filter(
+          (request): request is Promise<boolean> => request != null,
+        )
+        if (pendingReads.length) await Promise.allSettled(pendingReads)
+        if (cancellationEpoch !== refreshCancellationEpochRef.current) return false
+        succeeded = (await load(cycleSilent)) && succeeded
+      }
+      return succeeded
+    })().finally(() => { freshRequestRef.current = null })
+    freshRequestRef.current = run
+    return run
   }
   resumeRefreshRef.current = () => {
     if (auth?.authenticated) void load(Boolean(dashboard))
@@ -1203,19 +1276,20 @@ export function App() {
   const activeTotal = activeJobs.reduce((sum, job) => sum + job.total, 0)
   const activeCompleted = activeJobs.reduce((sum, job) => sum + job.completed, 0)
   const activeLabel = refreshingJobs.length
-    ? `正在同步测活前的站点信息：${refreshingJobs.flatMap((job) => job.targets).map((target) => target.label).join('；')}`
+    ? `正在同步测活前的站点信息：${summarizeRefreshingJobs(refreshingJobs)}`
     : runningTargets.length
-    ? `正在测活：${runningTargets.map((target) => `${target.label}（第${target.attempt || 1}/${target.attemptCount}次）`).join('；')}`
-    : activeTargets.length ? `等待测活：${activeTargets.map((target) => target.label).join('；')}` : '任务排队中'
+    ? `正在测活：${summarizeHealthTargets(runningTargets, (target) => `${target.label}（第${target.attempt || 1}/${target.attemptCount}次）`)}`
+    : activeTargets.length ? `等待测活：${summarizeHealthTargets(activeTargets)}` : '任务排队中'
   const currentTargetLabel = refreshingJobs.length
     ? '正在刷新分组倍率与站点余额'
     : runningTargets[0]?.label || queuedTargets[0]?.label || ''
   const refreshWarning = activeJobs.map((job) => job.refreshWarning).filter(Boolean).join('；')
   const activeTargetByModel = useMemo(() => new Map(activeTargets.map((target) => [target.modelId, target])), [activeTargets])
+  const activeModelIds = useMemo(() => new Set(activeTargetByModel.keys()), [activeTargetByModel])
   const activeGroupIds = useMemo(() => new Set(activeTargets.map((target) => target.groupId)), [activeTargets])
   const activeSiteIds = useMemo(() => new Set(activeTargets.map((target) => target.siteId)), [activeTargets])
   const globalModels = useMemo(() => dashboard?.sites.flatMap((site) => site.groups.flatMap((group) => group.models)) || [], [dashboard?.sites])
-  const globalStatusCounts = useMemo(() => statusCounts(globalModels), [globalModels])
+  const globalStatusCounts = useMemo(() => statusCounts(globalModels, activeModelIds), [globalModels, activeModelIds])
   const isHealthActive = (scope: HealthScope): boolean => {
     if (pendingHealthKeys.has(healthKey(scope))) return true
     if (scope.modelId) return activeTargetByModel.has(scope.modelId)
@@ -1224,7 +1298,7 @@ export function App() {
     return activeJobs.length > 0
   }
   const activeTargetFor = (modelId: number): HealthJobTarget | undefined => activeTargetByModel.get(modelId)
-  const visibleSites = dashboard?.sites.filter((site) => siteHasVisibleModels(site, deferredQuery, statusFilter)) || []
+  const visibleSites = dashboard?.sites.filter((site) => siteHasVisibleModels(site, deferredQuery, statusFilter, activeModelIds)) || []
   const filtering = Boolean(query.trim() || statusFilter !== 'all')
   const siteView = resolveSiteView(dashboard?.sites.length || 0, siteViewPreference)
   const focusedSite = visibleSites.find((site) => site.id === focusedSiteId) || visibleSites[0]
@@ -1235,44 +1309,43 @@ export function App() {
     ? visibleSites.filter((site) => `${site.name} ${site.baseUrl}`.toLowerCase().includes(normalizedSiteIndexQuery))
     : visibleSites
   const visibleSiteKey = visibleSites.map((site) => site.id).join(',')
+  const dashboardSiteKey = dashboard?.sites.map((site) => site.id).join(',') || ''
   useEffect(() => {
-    if (!visibleSites.length) {
+    if (!dashboard?.sites.length) {
       if (focusedSiteId != null) setFocusedSiteId(null)
       return
     }
-    if (!visibleSites.some((site) => site.id === focusedSiteId)) setFocusedSiteId(visibleSites[0].id)
-  }, [visibleSiteKey, focusedSiteId])
+    if (!dashboard.sites.some((site) => site.id === focusedSiteId)) setFocusedSiteId(dashboard.sites[0].id)
+  }, [dashboardSiteKey, focusedSiteId])
   useEffect(() => {
     if (focusedSiteId == null) return
     try { window.localStorage.setItem('aimon-focused-site', String(focusedSiteId)) } catch { /* Local preference is optional. */ }
   }, [focusedSiteId])
   useEffect(() => {
     if (siteView !== 'all' || !visibleSites.length) return
-    let observer: IntersectionObserver | null = null
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null
-    const connect = () => {
-      observer?.disconnect()
-      const marker = window.matchMedia('(max-width: 900px)').matches ? 72 : 140
-      const bottomInset = Math.max(0, window.innerHeight - marker - 2)
-      observer = new IntersectionObserver((entries) => {
-        const current = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => Math.abs(a.boundingClientRect.top - marker) - Math.abs(b.boundingClientRect.top - marker))[0]
-        const siteId = Number((current?.target as HTMLElement | undefined)?.dataset.siteId)
-        if (Number.isFinite(siteId)) setFocusedSiteId((previous) => previous === siteId ? previous : siteId)
-      }, { rootMargin: `-${marker}px 0px -${bottomInset}px 0px`, threshold: 0 })
-      for (const entry of siteWorkspaceRef.current?.querySelectorAll<HTMLElement>('[data-site-id]') || []) observer.observe(entry)
+    let frame: number | null = null
+    const syncCurrentSite = () => {
+      frame = null
+      const lock = siteScrollLockRef.current
+      if (lock && lock.until > Date.now()) {
+        setFocusedSiteId((previous) => previous === lock.siteId ? previous : lock.siteId)
+        return
+      }
+      siteScrollLockRef.current = null
+      const siteId = currentViewportSiteId()
+      if (siteId != null) setFocusedSiteId((previous) => previous === siteId ? previous : siteId)
     }
-    const reconnect = () => {
-      if (resizeTimer) clearTimeout(resizeTimer)
-      resizeTimer = setTimeout(connect, 100)
+    const scheduleSync = () => {
+      if (frame != null) return
+      frame = window.requestAnimationFrame(syncCurrentSite)
     }
-    connect()
-    window.addEventListener('resize', reconnect)
+    scheduleSync()
+    window.addEventListener('scroll', scheduleSync, { passive: true })
+    window.addEventListener('resize', scheduleSync)
     return () => {
-      if (resizeTimer) clearTimeout(resizeTimer)
-      observer?.disconnect()
-      window.removeEventListener('resize', reconnect)
+      if (frame != null) window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', scheduleSync)
+      window.removeEventListener('resize', scheduleSync)
     }
   }, [siteView, visibleSiteKey])
   useEffect(() => {
@@ -1321,44 +1394,44 @@ export function App() {
     setFocusRevision((current) => current + 1)
     if (!scroll) return
     window.requestAnimationFrame(() => {
-      const top = (siteWorkspaceRef.current?.getBoundingClientRect().top || 0) + window.scrollY - 74
+      const top = (siteWorkspaceRef.current?.getBoundingClientRect().top || 0) + window.scrollY - siteScrollOffset()
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
     })
+  }
+
+  function siteScrollOffset(): number {
+    if (!window.matchMedia('(max-width: 900px)').matches) return 128
+    const index = siteWorkspaceRef.current?.querySelector<HTMLElement>('.site-index')
+    if (!index) return 72
+    const stickyTop = Number.parseFloat(getComputedStyle(index).top)
+    return (Number.isFinite(stickyTop) ? stickyTop : 56) + index.offsetHeight + 10
   }
 
   function currentViewportSiteId(): number | null {
     const entries = Array.from(siteWorkspaceRef.current?.querySelectorAll<HTMLElement>('[data-site-id]') || [])
     if (!entries.length) return null
-    const marker = window.matchMedia('(max-width: 900px)').matches ? 72 : 140
-    const pageActuallyScrolls = document.documentElement.scrollHeight > window.innerHeight + marker
-    if (pageActuallyScrolls && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
-      const visibleAtBottom = entries.filter((entry) => {
-        const rect = entry.getBoundingClientRect()
-        return rect.top < window.innerHeight && rect.bottom > marker
-      })
-      const lastVisible = visibleAtBottom.at(-1)
-      if (lastVisible) {
-        const bottomSiteId = Number(lastVisible.dataset.siteId)
-        if (Number.isFinite(bottomSiteId)) return bottomSiteId
-      }
-    }
-    const current = entries.find((entry) => {
+    const visibleTop = siteScrollOffset()
+    const visibleBottom = window.innerHeight - (window.matchMedia('(max-width: 900px)').matches ? 66 : 0)
+    const current = entries.reduce((best, entry) => {
       const rect = entry.getBoundingClientRect()
-      return rect.top <= marker && rect.bottom > marker
-    }) || entries.reduce((nearest, entry) => {
-      const distance = Math.abs(entry.getBoundingClientRect().top - marker)
-      return distance < nearest.distance ? { entry, distance } : nearest
-    }, { entry: entries[0], distance: Number.POSITIVE_INFINITY }).entry
+      const visible = Math.max(0, Math.min(rect.bottom, visibleBottom) - Math.max(rect.top, visibleTop))
+      const distance = Math.abs(rect.top - visibleTop)
+      return visible > best.visible || (visible === best.visible && distance < best.distance)
+        ? { entry, visible, distance }
+        : best
+    }, { entry: entries[0], visible: -1, distance: Number.POSITIVE_INFINITY }).entry
     const siteId = Number(current.dataset.siteId)
     return Number.isFinite(siteId) ? siteId : null
   }
 
   function scrollToSite(siteId: number) {
+    siteScrollLockRef.current = { siteId, until: Date.now() + 1_200 }
+    setFocusedSiteId((previous) => previous === siteId ? previous : siteId)
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       const entry = siteWorkspaceRef.current?.querySelector<HTMLElement>(`[data-site-id="${siteId}"]`)
       const target = entry || siteWorkspaceRef.current
       if (!target) return
-      const offset = window.matchMedia('(max-width: 900px)').matches ? 72 : 140
+      const offset = siteScrollOffset()
       const top = target.getBoundingClientRect().top + window.scrollY - offset
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
     }))
@@ -1389,7 +1462,10 @@ export function App() {
   async function setSitesExpanded(siteIds: number[], expanded: boolean) {
     if (bulkAllToggling || !dashboard) return
     const ids = new Set(siteIds)
-    const anchorSiteId = siteView === 'focus' ? focusedSite?.id : currentViewportSiteId() || focusedSite?.id
+    // The directory/context selection is the user's explicit current site. Prefer
+    // it over a geometry re-scan: after collapsing all sites several short rows
+    // can be equally visible and the scan may otherwise jump to a neighbour.
+    const anchorSiteId = focusedSite?.id || currentViewportSiteId()
     if (!ids.size) return
     setBulkAllToggling(true)
     setExpansionCommand((current) => ({ revision: (current?.revision || 0) + 1, siteIds: [...ids], expanded }))
@@ -1425,11 +1501,19 @@ export function App() {
 
   const searchPending = deferredQuery !== query
   const statusFilterCounts: Record<StatusFilter, number> = { all: globalModels.length, ...globalStatusCounts }
+  const runtimeLabel = !isOnline
+    ? '网络离线'
+    : dashboardError || jobsError
+      ? '连接异常'
+    : activeJobs.length
+      ? refreshingJobs.length ? '正在同步站点信息' : `正在测活 ${activeCompleted}/${activeTotal}`
+      : '监控就绪'
+  const runtimeHasError = !isOnline || Boolean(dashboardError || jobsError)
 
   return <div className={`app-shell ${compactDensity ? 'density-compact' : ''}`}>
     <header className="app-header">
       <div className="brand"><div className="logo-mark"><Activity size={20} /></div><div><strong>AIMon</strong><span>AI RELAY MONITOR</span></div></div>
-      <div className={`runtime-state ${!isOnline ? 'offline' : activeJobs.length ? 'busy' : ''}`}><span />{!isOnline ? '网络离线' : activeJobs.length ? refreshingJobs.length ? '正在同步站点信息' : `正在测活 ${activeCompleted}/${activeTotal}` : '监控就绪'}</div>
+      <div className={`runtime-state ${runtimeHasError ? 'offline' : activeJobs.length ? 'busy' : ''}`} title={dashboardError || jobsError || runtimeLabel}><span />{runtimeLabel}</div>
       <div className="app-header-actions"><IconButton title="刷新监控数据" disabled={manualRefreshing} onClick={() => void refreshPanel()}><RefreshCw className={manualRefreshing ? 'spin' : ''} size={17} /></IconButton><span className="density-control"><IconButton title={compactDensity ? '切换为舒适布局' : '切换为紧凑布局'} pressed={compactDensity} onClick={toggleDensity}><Rows3 size={17} /></IconButton></span><IconButton title="默认配置" onClick={() => setSettingsOpen(true)}><SettingsIcon size={17} /></IconButton><IconButton title="退出登录" onClick={() => void signOut()}><LogOut size={17} /></IconButton></div>
     </header>
     <main className="workspace">
@@ -1442,7 +1526,7 @@ export function App() {
           <div><Server size={17} /><span>站点</span><strong>{dashboard.summary.sites}</strong></div>
           <div><Layers3 size={17} /><span>分组</span><strong>{dashboard.summary.groups}</strong></div>
           <div><Bot size={17} /><span>模型</span><strong>{dashboard.summary.models}</strong></div>
-          <div><Activity size={17} /><span>优质模型</span><strong>{dashboard.summary.excellent}<em> / {dashboard.summary.models}</em></strong></div>
+          <div><Activity size={17} /><span>优质模型</span><strong>{globalStatusCounts.excellent}<em> / {globalModels.length}</em></strong></div>
           <div><Timer size={17} /><span>自动测活</span><strong>{dashboard.settings.autoCheckMinutes ? `${dashboard.settings.autoCheckMinutes} 分钟` : '关闭'}</strong></div>
           <div><RefreshCw size={17} /><span>测活次数</span><strong>{dashboard.settings.healthAttempts}<em> 次 / 模型</em></strong></div>
         </section>
@@ -1467,7 +1551,7 @@ export function App() {
           <nav ref={siteIndexListRef} className="site-index-list" aria-label="选择站点">
             {directorySites.map((site) => {
               const models = site.groups.flatMap((group) => group.models)
-              const counts = statusCounts(models)
+              const counts = statusCounts(models, activeModelIds)
               const tone = activeSiteIds.has(site.id) ? 'checking'
                 : counts.failed ? 'failed'
                 : counts.available ? 'available'
@@ -1475,7 +1559,7 @@ export function App() {
               return <button type="button" aria-current={site.id === focusedSite?.id ? 'true' : undefined} className={site.id === focusedSite?.id ? 'active' : ''} key={site.id} onClick={() => selectDirectorySite(site.id)} title={`${site.name}\n${site.baseUrl}`}>
                 <i className={`site-index-status ${tone}`} />
                 <span><strong>{site.name}</strong><small>{site.baseUrl.replace(/^https?:\/\//, '').split('/')[0]} · {site.groups.length} 组</small></span>
-                <HealthBreakdown models={models} />
+                <HealthBreakdown models={models} activeModelIds={activeModelIds} />
               </button>
             })}
             {!directorySites.length && <div className="site-index-empty">目录中没有匹配的站点</div>}
@@ -1489,22 +1573,22 @@ export function App() {
             </div>
             <div className="context-actions">
               {siteView === 'focus' ? <>
-                <button type="button" disabled={focusedVisibleIndex <= 0} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex - 1].id)}><ArrowLeft size={15} />上一站</button>
-                <button type="button" disabled={focusedVisibleIndex < 0 || focusedVisibleIndex >= visibleSites.length - 1} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex + 1].id)}>下一站<ArrowRight size={15} /></button>
+                <button type="button" title="上一站" disabled={focusedVisibleIndex <= 0} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex - 1].id)}><ArrowLeft size={15} />上一站</button>
+                <button type="button" title="下一站" disabled={focusedVisibleIndex < 0 || focusedVisibleIndex >= visibleSites.length - 1} onClick={() => selectFocusedSite(visibleSites[focusedVisibleIndex + 1].id)}>下一站<ArrowRight size={15} /></button>
                 <span className="context-separator" />
-                <button type="button" className="context-primary" onClick={showAllSites}><List size={15} />返回全部站点</button>
-                <button type="button" disabled={bulkAllToggling || !focusedSite} onClick={() => focusedSite && void setSitesExpanded([focusedSite.id], true)}><ChevronsDown size={16} />展开本站全部层级</button>
-                <button type="button" disabled={bulkAllToggling || !focusedSite} onClick={() => focusedSite && void setSitesExpanded([focusedSite.id], false)}><ChevronsUp size={16} />收起本站全部层级</button>
+                <button type="button" title="返回全部站点" className="context-primary" onClick={showAllSites}><List size={15} />返回全部站点</button>
+                <button type="button" title="展开本站全部层级" disabled={bulkAllToggling || !focusedSite} onClick={() => focusedSite && void setSitesExpanded([focusedSite.id], true)}><ChevronsDown size={16} />展开本站全部层级</button>
+                <button type="button" title="收起本站全部层级" disabled={bulkAllToggling || !focusedSite} onClick={() => focusedSite && void setSitesExpanded([focusedSite.id], false)}><ChevronsUp size={16} />收起本站全部层级</button>
               </> : <>
-                <button type="button" className="context-primary" onClick={focusCurrentSite}><PanelLeft size={15} />单站查看</button>
-                <button type="button" disabled={bulkAllToggling} onClick={() => void setSitesExpanded(dashboard.sites.map((site) => site.id), true)}><ChevronsDown size={16} />展开所有站点</button>
-                <button type="button" disabled={bulkAllToggling} onClick={() => void setSitesExpanded(dashboard.sites.map((site) => site.id), false)}><ChevronsUp size={16} />收起所有站点</button>
+                <button type="button" title="单站查看" className="context-primary" onClick={focusCurrentSite}><PanelLeft size={15} />单站查看</button>
+                <button type="button" title="展开所有站点" disabled={bulkAllToggling} onClick={() => void setSitesExpanded(dashboard.sites.map((site) => site.id), true)}><ChevronsDown size={16} />展开所有站点</button>
+                <button type="button" title="收起所有站点" disabled={bulkAllToggling} onClick={() => void setSitesExpanded(dashboard.sites.map((site) => site.id), false)}><ChevronsUp size={16} />收起所有站点</button>
               </>}
             </div>
           </nav>}
           {displayedSites.map((site) => {
             const index = dashboard.sites.findIndex((item) => item.id === site.id)
-            return <div className="site-entry" data-site-id={site.id} key={siteView === 'focus' ? `focus:${site.id}:${focusRevision}` : `all:${site.id}`} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={deferredQuery} statusFilter={statusFilter} siteDragEnabled={siteView === 'all'} focusedView={siteView === 'focus'} expansionCommand={expansionCommand?.siteIds.includes(site.id) ? expansionCommand : undefined} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => setDeleteCandidate(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
+            return <div className="site-entry" data-site-id={site.id} key={siteView === 'focus' ? `focus:${site.id}:${focusRevision}` : `all:${site.id}`} onDragOver={(e) => siteView === 'all' && !recommended && !filtering && e.preventDefault()} onDrop={() => siteView === 'all' && void dropSite(site.id)}><SitePanel site={site} siteIndex={index} siteCount={dashboard.sites.length} recommended={recommended} query={deferredQuery} statusFilter={statusFilter} activeModelIds={activeModelIds} siteDragEnabled={siteView === 'all'} focusedView={siteView === 'focus'} expansionCommand={expansionCommand?.siteIds.includes(site.id) ? expansionCommand : undefined} onMoveSite={(delta) => void moveSite(index, delta)} onEdit={() => setWizard({ siteId: site.id })} onDelete={() => setDeleteCandidate(site)} deleting={deletingSiteIds.has(site.id)} onHealth={(scope) => void health(scope)} isHealthActive={isHealthActive} activeTargetFor={activeTargetFor} onChanged={() => void loadFresh(true)} onError={setToast} dragging={dragging} setDragging={setDragging} /></div>
           })}
           {!dashboard.sites.length && <div className="empty-state"><div className="empty-symbol"><Activity size={30} /></div><h2>还没有监控站点</h2><p>添加第一个 AI 中转站。</p><button className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button></div>}
           {dashboard.sites.length > 0 && !visibleSites.length && <div className="empty-state compact"><div className="empty-symbol"><Search size={26} /></div><h2>没有匹配的模型</h2><p>调整搜索词或状态筛选。</p><button className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button></div>}

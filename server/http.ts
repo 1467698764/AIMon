@@ -113,7 +113,6 @@ class OriginSemaphore {
 }
 
 const originSemaphores = new Map<string, OriginSemaphore>()
-const destinationChecks = new Map<string, { expiresAt: number; promise: Promise<void> }>()
 const privateNetworkBlockList = new BlockList()
 
 for (const [network, prefix] of [
@@ -142,9 +141,7 @@ async function assertRemoteDestination(baseUrl: string): Promise<void> {
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     throw new RemoteError('Private or loopback network destinations are disabled')
   }
-  const cached = destinationChecks.get(hostname)
-  if (cached && cached.expiresAt > Date.now()) return cached.promise
-  const promise = lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
+  await lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
     if (!addresses.length || addresses.some(({ address }) => isPrivateNetworkAddress(address))) {
       throw new RemoteError('Private or loopback network destinations are disabled')
     }
@@ -152,17 +149,6 @@ async function assertRemoteDestination(baseUrl: string): Promise<void> {
     if (error instanceof RemoteError) throw error
     throw new RemoteError(`Unable to resolve the remote site: ${error instanceof Error ? error.message : String(error)}`)
   })
-  if (!cached && destinationChecks.size >= 1_024) {
-    const oldest = destinationChecks.keys().next().value
-    if (oldest) destinationChecks.delete(oldest)
-  }
-  destinationChecks.set(hostname, { expiresAt: Date.now() + 60_000, promise })
-  try {
-    await promise
-  } catch (error) {
-    if (destinationChecks.get(hostname)?.promise === promise) destinationChecks.delete(hostname)
-    throw error
-  }
 }
 
 function semaphoreFor(baseUrl: string): OriginSemaphore {
