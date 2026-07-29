@@ -311,7 +311,7 @@ export function SitePanel({
               </span>
               <button
                 type="button"
-                className="button compact accent group-health-button"
+                className="button compact accent"
                 title={groupChecking ? '此分组正在测活' : '测活此分组'}
                 disabled={groupChecking}
                 onClick={() => onHealth({ groupId: group.id })}

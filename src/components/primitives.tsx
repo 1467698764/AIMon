@@ -114,15 +114,24 @@ const focusableSelector =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
 
 /** Traps focus, locks scrolling and restores the previous focus target on unmount. */
-export function useModalShell(onClose: () => void, closeDisabled: boolean) {
-  const containerRef = useRef<HTMLElement>(null)
+export function useModalShell<T extends HTMLElement = HTMLElement>(onClose: () => void, closeDisabled: boolean) {
+  const containerRef = useRef<T>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
+    // Clipping the body re-anchors the viewport on whatever still holds focus, so an overlay
+    // opened from a control that had scrolled out of view used to yank the page up to it.
+    // Pin the offset across the lock, and never let a focus() call move the viewport.
+    const pin = () => {
+      const { scrollX, scrollY } = window
+      return () => { if (window.scrollX !== scrollX || window.scrollY !== scrollY) window.scrollTo(scrollX, scrollY) }
+    }
+    let unpin = pin()
     document.body.style.overflow = 'hidden'
-    containerRef.current?.focus()
+    containerRef.current?.focus({ preventScroll: true })
+    unpin()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !closeDisabled) closeRef.current()
       if (event.key !== 'Tab' || !containerRef.current) return
@@ -145,8 +154,10 @@ export function useModalShell(onClose: () => void, closeDisabled: boolean) {
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
+      unpin = pin()
       document.body.style.overflow = previousOverflow
-      previous?.focus()
+      previous?.focus({ preventScroll: true })
+      unpin()
     }
   }, [closeDisabled])
   return containerRef

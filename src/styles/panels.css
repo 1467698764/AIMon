@@ -330,19 +330,23 @@
   .mobile-order { display: inline-flex; gap: 2px; margin-right: auto; }
   .site-facts { grid-row: auto; gap: var(--space-4) var(--space-5); }
   .site-facts > div:nth-child(4) { display: none; }
+  /* One column below this width. The two-column version starved the group name: the
+     action cluster sized column 2 to ~250px, leaving the name ~40px ("d…"), and the
+     buttons never even shared that line — the full-width meta row pushed them onto a
+     row of their own, so the wide column bought nothing. */
   .group-header {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
   }
-  .group-leading { grid-column: 1; }
-  .group-actions { grid-column: 2; }
-  .group-meta { grid-column: 1 / -1; gap: var(--space-4); }
+  .group-leading,
+  .group-meta,
+  .group-actions { grid-column: 1; }
+  .group-meta { gap: var(--space-4); }
+  /* Reorder left, run-check right, same as the site action row above. */
+  .group-actions { justify-content: flex-start; }
   .group-leading .drag-handle { display: none; }
   .model-grid { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
   .site-sync-warning { padding-inline: var(--space-4); flex-wrap: wrap; }
   .site-sync-warning > span { white-space: normal; overflow: visible; }
-  /* The site action row is full-width here, so it keeps its verb; the group header
-     still shares one line with the group name and cannot. */
-  .group-health-button > span { display: none; }
 }

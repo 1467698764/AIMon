@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CornerDownLeft, Search } from 'lucide-react'
+import { useModalShell } from './primitives'
 
 export type PaletteAction = {
   id: string
@@ -14,7 +15,12 @@ export function CommandPalette({ actions, onClose }: { actions: PaletteAction[];
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
-  const restoreRef = useRef<HTMLElement | null>(typeof document === 'undefined' ? null : document.activeElement as HTMLElement)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Same shell as the modals: document-level Escape, focus trap, scroll lock and focus
+  // restore. Escape used to live on the panel's onKeyDown, so it only worked while focus
+  // sat inside the palette — anything that pulled focus out left the palette unclosable
+  // by keyboard, and the page still scrolled behind it.
+  const panelRef = useModalShell<HTMLDivElement>(onClose, false)
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -23,7 +29,8 @@ export function CommandPalette({ actions, onClose }: { actions: PaletteAction[];
   }, [actions, query])
 
   useEffect(() => setCursor(0), [query])
-  useEffect(() => () => restoreRef.current?.focus?.(), [])
+  // Runs after the shell's own effect has focused the panel, so the query field wins.
+  useEffect(() => { inputRef.current?.focus() }, [])
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>('.palette-item.active')?.scrollIntoView({ block: 'nearest' })
   }, [cursor, matches.length])
@@ -41,12 +48,13 @@ export function CommandPalette({ actions, onClose }: { actions: PaletteAction[];
     onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
   >
     <div
+      ref={panelRef}
+      tabIndex={-1}
       className="palette"
       role="dialog"
       aria-modal="true"
       aria-label="命令面板"
       onKeyDown={(event) => {
-        if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
         if (event.key === 'ArrowDown') { event.preventDefault(); setCursor((current) => matches.length ? (current + 1) % matches.length : 0); return }
         if (event.key === 'ArrowUp') { event.preventDefault(); setCursor((current) => matches.length ? (current - 1 + matches.length) % matches.length : 0); return }
         if (event.key === 'Enter') { event.preventDefault(); commit(matches[cursor]) }
@@ -55,7 +63,7 @@ export function CommandPalette({ actions, onClose }: { actions: PaletteAction[];
       <div className="palette-search">
         <Search size={17} />
         <input
-          autoFocus
+          ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索命令、站点与视图"
