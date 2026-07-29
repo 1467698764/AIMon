@@ -27,6 +27,22 @@ export function latencyTone(metric: LatencyMetric, value: number | null): Latenc
   return 'bad'
 }
 
+/** Ceiling of the latency gauge: a value at or beyond it fills the whole track. */
+function latencyCeiling(metric: LatencyMetric): number {
+  return latencyThresholds[metric][1] * 1.25
+}
+
+/** Share of the gauge a latency value fills. Longer means slower; `null` renders as no data. */
+export function latencyFill(metric: LatencyMetric, value: number | null): number | null {
+  if (value == null || !Number.isFinite(value) || value < 0) return null
+  return Math.min(1, Math.max(value / latencyCeiling(metric), 0.06))
+}
+
+/** Position of the "still fast" boundary, drawn as a tick so the fill has a reference point. */
+export function latencyTick(metric: LatencyMetric): number {
+  return latencyThresholds[metric][0] / latencyCeiling(metric)
+}
+
 export function successTone(model: ModelItem): LatencyTone {
   if (model.successCount == null || model.attemptCount == null) return 'neutral'
   if (model.successCount >= model.attemptCount) return 'good'

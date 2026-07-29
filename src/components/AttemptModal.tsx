@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { HealthJobTarget, ModelItem } from '../types'
 import { fmtMs, fmtTime } from '../lib/format'
+import { latencyTone } from '../lib/health'
 import { copyText } from '../lib/view'
 import { Modal, StatusBadge } from './primitives'
 
@@ -46,9 +47,9 @@ export function AttemptModal({ model, activeTarget, onClose, onCopied }: {
             <span className="attempt-http">{attempt.httpStatus ? `HTTP ${attempt.httpStatus}` : '无有效响应'}</span>
           </header>
           <div className="attempt-metrics">
-            <span>首字 <b>{fmtMs(attempt.ttfbMs)}</b></span>
-            <span>TTFT <b>{fmtMs(attempt.ttftMs)}</b></span>
-            <span>耗时 <b>{fmtMs(attempt.totalMs)}</b></span>
+            <span>首字 <b className={`tone-${latencyTone('ttfb', attempt.ttfbMs)}`}>{fmtMs(attempt.ttfbMs)}</b></span>
+            <span>TTFT <b className={`tone-${latencyTone('ttft', attempt.ttftMs)}`}>{fmtMs(attempt.ttftMs)}</b></span>
+            <span>耗时 <b className={`tone-${latencyTone('total', attempt.totalMs)}`}>{fmtMs(attempt.totalMs)}</b></span>
           </div>
           {!attempt.ok && <p>{attempt.error || '测活失败，未返回错误信息'}</p>}
         </article>)}

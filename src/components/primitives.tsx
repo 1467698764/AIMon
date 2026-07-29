@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, CircleAlert, LoaderCircle, X } from 'lucide-react'
-import type { HealthJobTarget, ModelItem } from '../types'
+import type { HealthAttempt, HealthJobTarget, ModelItem } from '../types'
 import { fmtMs } from '../lib/format'
 import {
-  latencyTone, noActiveModelIds, statusCounts, statusError, statusLabels, successTone,
+  latencyFill, latencyTick, latencyTone, noActiveModelIds, statusCounts, statusError, statusLabels, successTone,
   type LatencyMetric, type LatencyTone,
 } from '../lib/health'
 
@@ -54,19 +54,50 @@ export function HealthBreakdown({ models, activeModelIds = noActiveModelIds }: {
   </div>
 }
 
-export function MetricValue({ metric, value, label }: { metric: LatencyMetric; value: number | null; label: string }) {
+/** Renders the three cells of one latency row directly into the `.model-metrics` grid. */
+export function MetricGaugeCells({ metric, label, hint, value }: {
+  metric: LatencyMetric
+  label: string
+  hint: string
+  value: number | null
+}) {
   const tone = latencyTone(metric, value)
-  return <span className={`metric-value metric-${tone}`} title={`${label}：${fmtMs(value)}`}>{fmtMs(value)}</span>
+  const fill = latencyFill(metric, value)
+  const readout = fmtMs(value)
+  const title = `${hint}：${readout}`
+  return <>
+    <span className="metric-label" title={title}>{label}</span>
+    <span className={`metric-gauge tone-${tone} ${fill == null ? 'empty' : ''}`} title={title} aria-hidden="true">
+      {fill != null && <>
+        <span className="gauge-fill" style={{ width: `${fill * 100}%` }} />
+        <span className="gauge-tick" style={{ left: `${latencyTick(metric) * 100}%` }} />
+      </>}
+    </span>
+    <span className={`metric-value tone-${tone}`} title={title}>{readout}</span>
+  </>
 }
 
-export function SuccessValue({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
+function AttemptDots({ attempts }: { attempts: HealthAttempt[] }) {
+  if (!attempts.length) return null
+  return <span className="attempt-dots" aria-hidden="true">
+    {attempts.map((attempt, index) => <i key={index} className={attempt.ok ? 'ok' : 'bad'} />)}
+  </span>
+}
+
+/** Leading readout of a model card: the tinted band that answers "is this model healthy". */
+export function SuccessReadout({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
+  const running = activeTarget?.status === 'running'
   const tone: LatencyTone = activeTarget ? 'neutral' : successTone(model)
-  const value = activeTarget?.status === 'running'
+  const value = running
     ? `第${activeTarget.attempt || 1}/${activeTarget.attemptCount}次`
-    : activeTarget?.status === 'queued'
+    : activeTarget
       ? '排队'
       : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
-  return <span className={`metric-value metric-${tone}`} title={`测活成功率：${value}`}>{value}</span>
+  return <div className={`success-readout tone-${tone}`} title={`测活成功率：${value}`}>
+    <span className="metric-label">成功率</span>
+    <strong className={`metric-value tone-${tone}`}>{value}</strong>
+    {!activeTarget && <AttemptDots attempts={model.attempts} />}
+  </div>
 }
 
 export function StatusBadge({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {

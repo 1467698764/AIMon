@@ -103,15 +103,6 @@ button:disabled { cursor: not-allowed; }
   white-space: nowrap;
 }
 
-.layer-kicker {
-  display: block;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
 .skeleton {
   border-radius: var(--radius-sm);
   background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-hover) 50%, var(--surface-sunken) 75%);

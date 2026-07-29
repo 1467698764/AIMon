@@ -209,7 +209,6 @@ export function SitePanel({
       <div className="site-identity">
         <div className="site-mark"><Server size={18} /></div>
         <div>
-          <small className="layer-kicker">站点</small>
           <div className="site-name-line">
             <h2 title={site.name}>{site.name}</h2>
             <span className={`platform ${site.connectionMode === 'manual' ? 'manual' : site.type}`}>
@@ -281,11 +280,9 @@ export function SitePanel({
                 onClick={() => void toggleGroup(group)}
               >{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
               <div className="group-title">
-                <Layers3 size={14} />
-                <div>
-                  <small className="layer-kicker">分组</small>
-                  <div><h3 title={group.name}>{group.name}</h3>{group.platform && <span title={group.platform}>{group.platform}</span>}</div>
-                </div>
+                <Layers3 size={15} />
+                <h3 title={group.name}>{group.name}</h3>
+                {group.platform && <span title={group.platform}>{group.platform}</span>}
               </div>
             </div>
             <div className="group-meta">
