@@ -22,8 +22,8 @@ export function SiteDirectory({
 }) {
   return <aside className="site-directory" aria-label="站点快速导航">
     <header>
-      <div><small>{focusMode ? '单站查看' : '全部站点'}</small><strong>站点目录</strong></div>
-      <span className="directory-count">{focusedIndex + 1} / {sites.length}</span>
+      <strong>站点目录</strong>
+      <span className="directory-count">{focusMode ? '单站' : '全部'} · {focusedIndex + 1} / {sites.length}</span>
     </header>
     <label className="search-box">
       <Search size={14} />

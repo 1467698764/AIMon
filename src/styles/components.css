@@ -224,7 +224,15 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--brand);
   box-shadow: var(--ring);
 }
-input:disabled, select:disabled { background: var(--surface-sunken); color: var(--text-faint); }
+/* In dark mode a sunken fill alone is nearly invisible, so disabled inputs also lose
+   contrast and gain a not-allowed cursor. */
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border-subtle);
+  color: var(--text-faint);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 
 input[type='checkbox'], input[type='radio'] {
   width: 15px;

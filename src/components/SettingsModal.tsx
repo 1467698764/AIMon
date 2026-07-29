@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CircleAlert, LoaderCircle, LockKeyhole } from 'lucide-react'
+import { CircleAlert, KeyRound, LoaderCircle, LockKeyhole, Timer } from 'lucide-react'
 import { api } from '../api'
 import type { Settings } from '../types'
 import { errorMessage } from '../lib/format'
@@ -51,17 +51,27 @@ export function SettingsModal({ current, onClose, onSaved }: {
 
   return <Modal title="默认配置" onClose={onClose} closeDisabled={saving}>
     <form onSubmit={submit}>
-      <div className="modal-body form-grid">
+      <div className="modal-body form-grid two-cols">
+        <div className="form-section"><KeyRound size={15} /><strong>站点默认凭据</strong><span>新增站点时自动填入</span></div>
         <label><span>默认登录账号</span><input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></label>
         <label><span>默认登录密码</span><input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder={current.hasPassword ? '已保存，留空不修改' : '尚未设置'} disabled={clearPassword} /></label>
-        {current.hasPassword && <label className="check-line"><input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />清除已保存密码</label>}
-        <label><span>自动测活间隔（分钟）</span><input type="number" min="0" step="1" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} /></label>
-        <label><span>每个模型测活次数</span><input type="number" min="1" max="10" step="1" value={healthAttempts} onChange={(e) => setHealthAttempts(Number(e.target.value))} /></label>
+        {current.hasPassword && <label className="check-line full"><input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />清除已保存密码</label>}
+        <div className="form-section"><Timer size={15} /><strong>测活行为</strong><span>作用于所有站点</span></div>
+        <label>
+          <span>自动测活间隔（分钟）</span>
+          <input type="number" min="0" step="1" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} />
+          <small className="form-hint">填 0 关闭后台轮询</small>
+        </label>
+        <label>
+          <span>每个模型测活次数</span>
+          <input type="number" min="1" max="10" step="1" value={healthAttempts} onChange={(e) => setHealthAttempts(Number(e.target.value))} />
+          <small className="form-hint">1–10 次，结果取平均</small>
+        </label>
         <div className="form-section"><LockKeyhole size={15} /><strong>修改管理密码</strong><span>留空则不修改</span></div>
-        <label><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>
+        <label className="full"><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>
         <label><span>新管理密码</span><input value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" placeholder="至少 8 个字符" /></label>
         <label><span>确认新管理密码</span><input value={confirmAdminPassword} onChange={(e) => setConfirmAdminPassword(e.target.value)} type="password" minLength={8} maxLength={200} autoComplete="new-password" required={Boolean(newAdminPassword)} /></label>
-        {error && <div className="form-error" role="alert"><CircleAlert size={16} />{error}</div>}
+        {error && <div className="form-error full" role="alert"><CircleAlert size={16} />{error}</div>}
       </div>
       <footer className="modal-footer">
         <button type="button" className="button ghost" disabled={saving} onClick={onClose}>取消</button>

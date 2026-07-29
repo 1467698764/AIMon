@@ -3,14 +3,15 @@ import { Activity, Bot, CircleAlert, CircleCheck, Layers3, RefreshCw, Server, Ti
 import type { Dashboard } from '../types'
 import type { StatusCounts } from '../lib/health'
 
-function Tile({ icon, label, value, hint, tone }: {
+function Tile({ icon, label, value, hint, tone, setting }: {
   icon: ReactNode
   label: string
   value: ReactNode
   hint: string
   tone?: 'good' | 'bad'
+  setting?: boolean
 }) {
-  return <article className={`overview-tile ${tone ? `tone-${tone}` : ''}`}>
+  return <article className={`overview-tile ${tone ? `tone-${tone}` : ''} ${setting ? 'is-setting' : ''}`}>
     <header>{icon}{label}</header>
     <strong>{value}</strong>
     <small>{hint}</small>
@@ -51,12 +52,14 @@ export function OverviewTiles({ dashboard, counts, total, checking }: {
     <Tile
       icon={<Timer size={15} />}
       label="自动测活"
+      setting
       value={dashboard.settings.autoCheckMinutes ? `${dashboard.settings.autoCheckMinutes} 分钟` : '关闭'}
       hint="后台轮询间隔"
     />
     <Tile
       icon={<RefreshCw size={15} />}
       label="测活次数"
+      setting
       value={<>{dashboard.settings.healthAttempts}<em> 次</em></>}
       hint="每个模型每轮请求数"
     />
