@@ -1,0 +1,176 @@
+/* Design tokens. Every colour, spacing and motion value in AIMon resolves here. */
+:root {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Consolas, monospace;
+
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+  --space-9: 40px;
+
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13.5px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 21px;
+  --text-2xl: 27px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 110ms;
+  --dur: 190ms;
+  --dur-slow: 320ms;
+
+  --z-sticky: 20;
+  --z-header: 30;
+  --z-overlay: 100;
+  --z-toast: 120;
+
+  --shell-max: 1560px;
+  --header-height: 58px;
+  --directory-width: 268px;
+
+  /* Density-driven layout rhythm. */
+  --panel-pad: var(--space-6);
+  --card-pad: var(--space-5);
+  --section-gap: var(--space-5);
+  --model-card-min: 268px;
+  --row-height: 34px;
+}
+[data-density='compact'] {
+  --panel-pad: var(--space-4);
+  --card-pad: var(--space-3);
+  --section-gap: var(--space-3);
+  --model-card-min: 230px;
+  --row-height: 30px;
+  --text-base: 12.5px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 19px;
+  --text-2xl: 24px;
+}
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: #eef1f6;
+  --canvas-tint: #e5eaf3;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f5f7fb;
+  --surface-hover: #eef2f8;
+  --surface-active: #e5ebf6;
+  --overlay-scrim: rgba(15, 23, 42, 0.44);
+
+  --border: #dde3ec;
+  --border-subtle: #e8edf4;
+  --border-strong: #c6cfdd;
+
+  --text: #10192b;
+  --text-soft: #47536b;
+  --text-muted: #74809a;
+  --text-faint: #97a2b8;
+  --text-inverse: #ffffff;
+
+  --brand: #2f5bea;
+  --brand-strong: #2247c9;
+  --brand-soft: #eaf0ff;
+  --brand-soft-strong: #d8e2ff;
+  --brand-border: #bfd0ff;
+  --brand-contrast: #ffffff;
+
+  --good: #12805c;
+  --good-ink: #0e6a4d;
+  --good-soft: #e8f7f1;
+  --good-border: #bfe5d6;
+
+  --warn: #a9670a;
+  --warn-ink: #8c5409;
+  --warn-soft: #fdf4e3;
+  --warn-border: #f0dcb4;
+
+  --bad: #c62f42;
+  --bad-ink: #a82736;
+  --bad-soft: #fdeef0;
+  --bad-border: #f2ccd3;
+
+  --idle: #66758f;
+  --idle-soft: #f1f4f9;
+  --idle-border: #dee4ee;
+
+  --shadow-1: 0 1px 2px rgba(16, 25, 43, 0.05);
+  --shadow-2: 0 6px 18px -8px rgba(16, 25, 43, 0.18), 0 1px 3px rgba(16, 25, 43, 0.05);
+  --shadow-3: 0 22px 48px -18px rgba(16, 25, 43, 0.32), 0 2px 8px rgba(16, 25, 43, 0.08);
+  --ring: 0 0 0 3px rgba(47, 91, 234, 0.28);
+  --grid-line: rgba(16, 25, 43, 0.05);
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #0b0f17;
+  --canvas-tint: #0f1522;
+  --surface: #151b27;
+  --surface-raised: #1a2230;
+  --surface-sunken: #111725;
+  --surface-hover: #1f2836;
+  --surface-active: #263040;
+  --overlay-scrim: rgba(4, 7, 13, 0.66);
+
+  --border: #26303f;
+  --border-subtle: #1e2734;
+  --border-strong: #354153;
+
+  --text: #eef2f9;
+  --text-soft: #b8c2d4;
+  --text-muted: #8d99ae;
+  --text-faint: #6d7891;
+  --text-inverse: #0b0f17;
+
+  --brand: #6a8dff;
+  --brand-strong: #8aa5ff;
+  --brand-soft: #1a2440;
+  --brand-soft-strong: #223055;
+  --brand-border: #2f4272;
+  --brand-contrast: #08101f;
+
+  --good: #43cd9b;
+  --good-ink: #7fe0bd;
+  --good-soft: #10281f;
+  --good-border: #1d4738;
+
+  --warn: #e3ac52;
+  --warn-ink: #f0c579;
+  --warn-soft: #2a2010;
+  --warn-border: #4a3a17;
+
+  --bad: #f4788b;
+  --bad-ink: #f8a0ae;
+  --bad-soft: #2c1419;
+  --bad-border: #52222c;
+
+  --idle: #8d99ae;
+  --idle-soft: #171e2b;
+  --idle-border: #26303f;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 22px -10px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 26px 54px -20px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.5);
+  --ring: 0 0 0 3px rgba(106, 141, 255, 0.35);
+  --grid-line: rgba(255, 255, 255, 0.05);
+}
+

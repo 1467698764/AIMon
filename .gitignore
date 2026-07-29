@@ -8,4 +8,4 @@ backups/
 .vite/
 coverage/
 server/*.tsbuildinfo
-.tmp-ui-data-*/
+.tmp-*/
