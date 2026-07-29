@@ -10,6 +10,22 @@ import type { Credentials, ExistingRemoteKey, RemoteGroup, RemoteModel } from '.
 
 type Row = Record<string, any>
 
+/**
+ * A health check waits for a whole answer, so it cannot share the short timeout used for
+ * login and metadata calls: a reasoning model can spend minutes thinking before the first
+ * token arrives. The ceiling is a stored setting rather than an env var so it can be
+ * raised from the panel.
+ */
+export const HEALTH_TIMEOUT_DEFAULT_MS = 300_000
+export const HEALTH_TIMEOUT_MIN_MS = 10_000
+export const HEALTH_TIMEOUT_MAX_MS = 1_800_000
+
+export function clampHealthTimeout(value: unknown): number {
+  const parsed = Math.floor(Number(value))
+  if (!Number.isFinite(parsed) || parsed <= 0) return HEALTH_TIMEOUT_DEFAULT_MS
+  return Math.max(HEALTH_TIMEOUT_MIN_MS, Math.min(HEALTH_TIMEOUT_MAX_MS, parsed))
+}
+
 export interface DiscoverInput {
   id?: number
   name: string
@@ -559,20 +575,30 @@ export function getSettings() {
     hasPassword: Boolean(row.password_enc),
     autoCheckMinutes: Number(row.auto_check_minutes || 0),
     healthAttempts: Math.max(1, Math.min(10, Math.floor(Number(row.health_attempts || 3)))),
+    healthTimeoutMs: clampHealthTimeout(row.health_timeout_ms),
   }
 }
 
-export function saveSettings(input: { username?: string; password?: string; autoCheckMinutes?: number; healthAttempts?: number }) {
+export function saveSettings(input: {
+  username?: string
+  password?: string
+  autoCheckMinutes?: number
+  healthAttempts?: number
+  healthTimeoutMs?: number
+}) {
   const current = one('SELECT * FROM settings WHERE id = 1')!
   const minutes = Math.max(0, Math.floor(Number(input.autoCheckMinutes ?? current.auto_check_minutes ?? 0)))
   const attempts = Math.max(1, Math.min(10, Math.floor(Number(input.healthAttempts ?? current.health_attempts ?? 3))))
+  const timeout = clampHealthTimeout(input.healthTimeoutMs ?? current.health_timeout_ms)
   db.prepare(`
-    UPDATE settings SET username_enc = ?, password_enc = ?, auto_check_minutes = ?, health_attempts = ?, updated_at = ? WHERE id = 1
+    UPDATE settings SET username_enc = ?, password_enc = ?, auto_check_minutes = ?, health_attempts = ?,
+      health_timeout_ms = ?, updated_at = ? WHERE id = 1
   `).run(
     input.username !== undefined ? encrypt(input.username.trim()) : current.username_enc,
     input.password !== undefined ? encrypt(input.password) : current.password_enc,
     minutes,
     attempts,
+    timeout,
     nowIso(),
   )
   return getSettings()

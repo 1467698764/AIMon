@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { config } from './config.js'
 import { db, nowIso } from './db.js'
 import { extractMessage, remoteFetch } from './http.js'
 import { extractGeneratedText, extractSseText, hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
 import { redactSensitiveText } from './privacy.js'
-import { getHealthTargets, refreshHealthMetadata, apiBaseUrlOf } from './site-service.js'
+import { getHealthTargets, refreshHealthMetadata, apiBaseUrlOf, clampHealthTimeout } from './site-service.js'
 import type { HealthAttempt, HealthStatus } from './types.js'
 
 interface HealthScope {
@@ -130,10 +129,11 @@ async function streamingAttempt(
   key: string,
   pathname: string,
   body: Record<string, unknown>,
+  timeoutMs: number,
 ): Promise<HealthAttempt & { responseBody?: string }> {
   const started = performance.now()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), config.requestTimeoutMs)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await remoteFetch(baseUrl, pathname, {
       method: 'POST',
@@ -146,7 +146,7 @@ async function streamingAttempt(
         'User-Agent': 'AIMon/1.0',
       },
       body: JSON.stringify(body),
-    }, config.requestTimeoutMs)
+    }, timeoutMs)
     const browserFallback = response.headers.get('x-aimon-browser-fallback') === '1'
     const browserTtfb = Number(response.headers.get('x-aimon-browser-ttfb-ms'))
     const browserTtft = Number(response.headers.get('x-aimon-browser-ttft-ms'))
@@ -211,7 +211,7 @@ async function streamingAttempt(
       totalMs: Math.round(total * 10) / 10,
       httpStatus: null,
       error: error instanceof Error && error.name === 'AbortError'
-        ? `请求超时（${config.requestTimeoutMs}ms）`
+        ? `请求超时（${Math.round(timeoutMs / 1000)}s，可在默认配置中调整单次测活超时）`
         : (error instanceof Error ? error.message : String(error)),
     }
   } finally {
@@ -225,11 +225,12 @@ async function jsonAttempt(
   pathname: string,
   body: Record<string, unknown>,
   validate: (body: any) => boolean,
+  timeoutMs: number,
   extraHeaders: Record<string, string> = {},
 ): Promise<HealthAttempt> {
   const started = performance.now()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), config.requestTimeoutMs)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await remoteFetch(baseUrl, pathname, {
       method: 'POST',
@@ -243,7 +244,7 @@ async function jsonAttempt(
         ...extraHeaders,
       },
       body: JSON.stringify(body),
-    }, config.requestTimeoutMs)
+    }, timeoutMs)
     const browserFallback = response.headers.get('x-aimon-browser-fallback') === '1'
     const reportedTtfb = Number(response.headers.get('x-aimon-browser-ttfb-ms'))
     const reader = response.body?.getReader()
@@ -289,7 +290,7 @@ async function jsonAttempt(
       totalMs: Math.round(total * 10) / 10,
       httpStatus: null,
       error: error instanceof Error && error.name === 'AbortError'
-        ? `请求超时（${config.requestTimeoutMs}ms）`
+        ? `请求超时（${Math.round(timeoutMs / 1000)}s，可在默认配置中调整单次测活超时）`
         : (error instanceof Error ? error.message : String(error)),
     }
   } finally {
@@ -306,6 +307,7 @@ async function testOnce(
   key: string,
   model: string,
   endpointTypes: string[],
+  timeoutMs: number,
   prompt?: string,
 ): Promise<HealthAttempt> {
   const types = new Set(endpointTypes)
@@ -314,26 +316,26 @@ async function testOnce(
   if (!types.has('openai') && types.has('openai-response')) {
     const responses = await streamingAttempt(baseUrl, key, '/v1/responses', {
       model, input: question, stream: true, max_output_tokens: maxTokens,
-    })
+    }, timeoutMs)
     const { responseBody: _, ...result } = responses
     return result
   }
   if (!types.has('openai') && types.has('embeddings')) {
     return jsonAttempt(baseUrl, key, '/v1/embeddings', { model, input: 'hi' },
-      (body) => Array.isArray(body?.data?.[0]?.embedding) && body.data[0].embedding.length > 0)
+      (body) => Array.isArray(body?.data?.[0]?.embedding) && body.data[0].embedding.length > 0, timeoutMs)
   }
   if (!types.has('openai') && types.has('image-generation')) {
     return jsonAttempt(baseUrl, key, '/v1/images/generations', { model, prompt: 'A small green circle', n: 1 },
-      (body) => Boolean(body?.data?.[0]?.url || body?.data?.[0]?.b64_json))
+      (body) => Boolean(body?.data?.[0]?.url || body?.data?.[0]?.b64_json), timeoutMs)
   }
   if (!types.has('openai') && types.has('jina-rerank')) {
     return jsonAttempt(baseUrl, key, '/v1/rerank', { model, query: 'hello', documents: ['hello world', 'goodbye'] },
-      (body) => Array.isArray(body?.results || body?.data))
+      (body) => Array.isArray(body?.results || body?.data), timeoutMs)
   }
   if (!types.has('openai') && types.has('anthropic')) {
     return jsonAttempt(baseUrl, key, '/v1/messages', {
       model, max_tokens: maxTokens, messages: [{ role: 'user', content: question }],
-    }, (body) => Array.isArray(body?.content) && body.content.some((item: any) => typeof item?.text === 'string' && item.text.trim()), {
+    }, (body) => Array.isArray(body?.content) && body.content.some((item: any) => typeof item?.text === 'string' && item.text.trim()), timeoutMs, {
       'x-api-key': key,
       'anthropic-version': '2023-06-01',
     })
@@ -343,7 +345,7 @@ async function testOnce(
       contents: [{ role: 'user', parts: [{ text: question }] }],
       generationConfig: { maxOutputTokens: maxTokens },
     }, (body) => Array.isArray(body?.candidates)
-      && body.candidates.some((candidate: any) => candidate?.content?.parts?.some((part: any) => typeof part?.text === 'string' && part.text.trim())))
+      && body.candidates.some((candidate: any) => candidate?.content?.parts?.some((part: any) => typeof part?.text === 'string' && part.text.trim())), timeoutMs)
   }
   if (types.size && !types.has('openai')) {
     return {
@@ -359,7 +361,7 @@ async function testOnce(
     model,
     messages: [{ role: 'user', content: question }],
     stream: true,
-  })
+  }, timeoutMs)
   if (chat.ok) {
     const { responseBody: _, ...result } = chat
     return result
@@ -372,7 +374,7 @@ async function testOnce(
       model,
       messages: [{ role: 'user', content: question }],
       stream: false,
-    }, (body) => hasGeneratedText(body))
+    }, (body) => hasGeneratedText(body), timeoutMs)
     if (nonStreaming.ok) return nonStreaming
   }
   const canFallback = [404, 405].includes(chat.httpStatus || 0)
@@ -387,7 +389,7 @@ async function testOnce(
     input: question,
     stream: true,
     max_output_tokens: maxTokens,
-  })
+  }, timeoutMs)
   const { responseBody: _, ...result } = responses
   return result
 }
@@ -396,6 +398,7 @@ async function runTarget(
   target: Record<string, any>,
   checkId: number,
   attemptCount: number,
+  timeoutMs: number,
   prompt?: string,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
@@ -405,7 +408,7 @@ async function runTarget(
     onAttempt?.(index + 1)
     let endpointTypes: string[] = []
     try { endpointTypes = JSON.parse(target.endpoint_types_json || '[]') } catch { /* Use compatibility probing. */ }
-    const attempt = await testOnce(baseUrl, target.apiKey, target.model_name, endpointTypes, prompt)
+    const attempt = await testOnce(baseUrl, target.apiKey, target.model_name, endpointTypes, timeoutMs, prompt)
     if (attempt.error) attempt.error = redactSensitiveText(attempt.error, [target.apiKey])
     if (attempt.reply) attempt.reply = redactSensitiveText(attempt.reply, [target.apiKey])
     attempts.push(attempt)
@@ -433,10 +436,10 @@ async function runTarget(
   `).run(target.model_id, target.model_id)
 }
 
-function targetSignature(target: Record<string, any>, attemptCount: number, prompt?: string): string {
+function targetSignature(target: Record<string, any>, attemptCount: number, timeoutMs: number, prompt?: string): string {
   const fingerprint = createHash('sha256').update(String(target.apiKey)).digest('hex').slice(0, 16)
   const question = createHash('sha256').update(prompt?.trim() || '').digest('hex').slice(0, 12)
-  return `${target.model_id}|${target.config_revision}|${apiBaseUrlOf(target)}|${fingerprint}|${target.model_name}|${attemptCount}|${question}`
+  return `${target.model_id}|${target.config_revision}|${apiBaseUrlOf(target)}|${fingerprint}|${target.model_name}|${attemptCount}|${timeoutMs}|${question}`
 }
 
 function copyCheck(fromId: number, toId: number): void {
@@ -453,17 +456,18 @@ function runModelOnce(
   target: Record<string, any>,
   checkId: number,
   attemptCount: number,
+  timeoutMs: number,
   prompt?: string,
   onStart?: () => void,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
-  const signature = targetSignature(target, attemptCount, prompt)
+  const signature = targetSignature(target, attemptCount, timeoutMs, prompt)
   const existing = activeModels.get(signature)
   if (existing) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
   const task = () => runForSite(Number(target.site_id), async () => {
     onStart?.()
-    await runTarget(target, checkId, attemptCount, prompt, onAttempt)
+    await runTarget(target, checkId, attemptCount, timeoutMs, prompt, onAttempt)
   })
   const promise = task()
     .catch((error) => {
@@ -537,8 +541,9 @@ export function startHealthCheck(scope: HealthScope = {}, prompt?: string): Heal
     }
   }
   if (!targets.length) throw new Error('当前范围内的模型已在测活')
-  const settings = db.prepare('SELECT health_attempts FROM settings WHERE id = 1').get() as Record<string, any> | undefined
+  const settings = db.prepare('SELECT health_attempts, health_timeout_ms FROM settings WHERE id = 1').get() as Record<string, any> | undefined
   const attemptCount = Math.max(1, Math.min(10, Math.floor(Number(settings?.health_attempts || 3))))
+  const timeoutMs = clampHealthTimeout(settings?.health_timeout_ms)
   const job: HealthJob = {
     id: randomUUID(),
     status: 'queued',
@@ -568,7 +573,7 @@ export function startHealthCheck(scope: HealthScope = {}, prompt?: string): Heal
 
   const promise = new Promise<void>((resolve) => {
     setImmediate(() => {
-      void executeHealthJob(job, scope, targets, checkIds, attemptCount, customPrompt).finally(resolve)
+      void executeHealthJob(job, scope, targets, checkIds, attemptCount, timeoutMs, customPrompt).finally(resolve)
     })
   })
   jobPromises.set(job.id, promise)
@@ -581,6 +586,7 @@ async function executeHealthJob(
   targets: Array<Record<string, any>>,
   checkIds: number[],
   attemptCount: number,
+  timeoutMs: number,
   prompt: string,
 ): Promise<void> {
     job.status = 'running'
@@ -608,7 +614,7 @@ async function executeHealthJob(
         try {
           await metadataBySite.get(Number(target.site_id))
           job.phase = 'checking'
-          await runModelOnce(target, checkIds[index], attemptCount, prompt, () => {
+          await runModelOnce(target, checkIds[index], attemptCount, timeoutMs, prompt, () => {
             jobTarget.status = 'running'
             job.current = jobTarget.label
           }, (attempt) => {

@@ -15,6 +15,7 @@ export function SettingsModal({ current, onClose, onSaved }: {
   const [clearPassword, setClearPassword] = useState(false)
   const [minutes, setMinutes] = useState(current.autoCheckMinutes)
   const [healthAttempts, setHealthAttempts] = useState(current.healthAttempts)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(Math.round(current.healthTimeoutMs / 1000))
   const [currentAdminPassword, setCurrentAdminPassword] = useState('')
   const [newAdminPassword, setNewAdminPassword] = useState('')
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('')
@@ -34,6 +35,7 @@ export function SettingsModal({ current, onClose, onSaved }: {
         username,
         autoCheckMinutes: minutes,
         healthAttempts,
+        healthTimeoutMs: Math.round(Math.max(10, Math.min(1_800, timeoutSeconds || 0)) * 1000),
         ...(clearPassword ? { password: '' } : password ? { password } : {}),
       })
       onSaved(); onClose()
@@ -66,6 +68,11 @@ export function SettingsModal({ current, onClose, onSaved }: {
           <span>每个模型测活次数</span>
           <input type="number" min="1" max="10" step="1" value={healthAttempts} onChange={(e) => setHealthAttempts(Number(e.target.value))} />
           <small className="form-hint">1–10 次，结果取平均</small>
+        </label>
+        <label className="full">
+          <span>单次测活超时（秒）</span>
+          <input type="number" min="10" max="1800" step="10" value={timeoutSeconds} onChange={(e) => setTimeoutSeconds(Number(e.target.value))} />
+          <small className="form-hint">10–1800 秒。推理模型只是思考就可能超过 160 秒，超时过短会把慢模型判成失败</small>
         </label>
         <div className="form-section"><LockKeyhole size={15} /><strong>修改管理密码</strong><span>留空则不修改</span></div>
         <label className="full"><span>当前管理密码</span><input value={currentAdminPassword} onChange={(e) => setCurrentAdminPassword(e.target.value)} type="password" autoComplete="current-password" required={Boolean(newAdminPassword)} /></label>

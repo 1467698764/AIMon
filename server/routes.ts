@@ -38,6 +38,7 @@ router.put('/settings', (req, res) => {
     password: z.string().max(500).optional(),
     autoCheckMinutes: z.number().int().min(0).max(525_600).optional(),
     healthAttempts: z.number().int().min(1).max(10).optional(),
+    healthTimeoutMs: z.number().int().min(10_000).max(1_800_000).optional(),
   }).parse(req.body)
   res.json(saveSettings(input))
 })

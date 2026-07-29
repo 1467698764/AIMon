@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   completedAttempts: new Map<number, any[]>(),
   completedStatuses: new Map<number, string>(),
   healthAttempts: 3,
+  healthTimeoutMs: 300_000,
   nextCheckId: 1,
 }))
 
@@ -15,6 +16,11 @@ vi.mock('./site-service.js', () => ({
   getHealthTargets: mocks.getHealthTargets,
   refreshHealthMetadata: mocks.refreshHealthMetadata,
   apiBaseUrlOf: (row: any) => row.api_base_url || row.base_url,
+  clampHealthTimeout: (value: unknown) => {
+    const parsed = Math.floor(Number(value))
+    if (!Number.isFinite(parsed) || parsed <= 0) return 300_000
+    return Math.max(10_000, Math.min(1_800_000, parsed))
+  },
 }))
 vi.mock('./http.js', () => ({
   extractMessage: (body: any) => String(body?.message || body?.error?.message || body?.error || ''),
@@ -42,7 +48,9 @@ vi.mock('./db.js', () => ({
           },
         }
       }
-      if (/SELECT health_attempts FROM settings/i.test(sql)) return { get: () => ({ health_attempts: mocks.healthAttempts }) }
+      if (/SELECT health_attempts, health_timeout_ms FROM settings/i.test(sql)) {
+        return { get: () => ({ health_attempts: mocks.healthAttempts, health_timeout_ms: mocks.healthTimeoutMs }) }
+      }
       if (/SELECT \* FROM health_checks/i.test(sql)) return { get: () => undefined }
       if (/SELECT h\.status, h\.attempts_json/i.test(sql)) return { all: () => [] }
       return { run: () => ({ changes: 1 }), get: () => undefined, all: () => [] }
@@ -94,6 +102,7 @@ afterEach(() => {
   mocks.completedAttempts.clear()
   mocks.completedStatuses.clear()
   mocks.healthAttempts = 3
+  mocks.healthTimeoutMs = 300_000
 })
 
 describe('health job runtime state', () => {
@@ -182,6 +191,21 @@ describe('health job runtime state', () => {
     releaseRefresh()
     await waitForJob(job.id)
     expect(job.phase).toBe('checking')
+  })
+
+  it('sends the configured per-check timeout instead of the short remote-call timeout', async () => {
+    mocks.healthAttempts = 1
+    mocks.healthTimeoutMs = 600_000
+    mocks.getHealthTargets.mockReturnValue([target(firstModelId, 'model-slow-thinker')])
+    mocks.remoteFetch.mockResolvedValue(successResponse())
+
+    const job = startHealthCheck({ modelId: firstModelId })
+    await waitForJob(job.id)
+
+    expect(mocks.remoteFetch).toHaveBeenCalledTimes(1)
+    expect(mocks.remoteFetch.mock.calls[0][3]).toBe(600_000)
+    const init = mocks.remoteFetch.mock.calls[0][2] as RequestInit
+    expect((init.signal as AbortSignal).aborted).toBe(false)
   })
 
   it('falls back to a non-streaming chat request when streaming is unsupported', async () => {

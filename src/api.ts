@@ -16,6 +16,7 @@ function isSettings(value: unknown): value is Settings {
     && typeof value.hasPassword === 'boolean'
     && typeof value.autoCheckMinutes === 'number'
     && typeof value.healthAttempts === 'number'
+    && typeof value.healthTimeoutMs === 'number'
 }
 
 function isDashboard(value: unknown): value is Dashboard {

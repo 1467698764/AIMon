@@ -64,6 +64,7 @@ export interface Settings {
   hasPassword: boolean
   autoCheckMinutes: number
   healthAttempts: number
+  healthTimeoutMs: number
 }
 
 export interface Dashboard {
