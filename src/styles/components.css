@@ -1,9 +1,9 @@
 /* Buttons. Neutral face, hairline border, glyph in the same ink as the label, tight 8px
-   corner. No vertical gloss and no hover lift. Nothing here is blue: a row of blue-tinted
-   buttons with blue icons spends the brand colour on chrome, and then nothing in the row
-   reads as more important than the rest. Hierarchy is face weight, not hue — primary
-   (near-black, the one committing action) > secondary (grey, every 测活 entry) > default
-   (white) > ghost. Blue is left to mean link, focus, and check-in-progress. */
+   corner. No vertical gloss and no hover lift. There are exactly two button faces in the
+   whole app: this white one and the single near-black primary. A grey middle tier used to
+   sit between them, and a toolbar holding white 控件, grey 测活 and one black 添加站点 reads
+   as three unrelated buttons rather than as a hierarchy. Emphasis is the dark slab, and
+   there is only ever one of those in view. Blue means link, focus, and check-in-progress. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -40,19 +40,11 @@
 .button.primary:hover:not(:disabled) { background: var(--primary-face-hover); border-color: transparent; }
 .button.primary:active:not(:disabled) { background: var(--primary-face); }
 
-/* Secondary marks the action a monitoring tool exists for. A grey face is enough to
-   separate it from the plain controls beside it without adding another colour. */
-.button.accent {
-  background: var(--secondary-face);
-  border-color: var(--control-border);
-  color: var(--text);
-  font-weight: 650;
-}
-.button.accent:hover:not(:disabled) {
-  background: var(--secondary-face-hover);
-  border-color: var(--control-border-hover);
-}
-.button.accent:active:not(:disabled) { background: var(--secondary-face-hover); }
+/* .accent marks the action a monitoring tool exists for (every 测活 entry). It keeps the
+   standard face and pays for its emphasis with a heavier label and full-strength glyph:
+   giving it its own grey ground made three different neutral faces share one row. */
+.button.accent { font-weight: 650; }
+.button.accent > svg { color: var(--text-soft); }
 
 /* Ghost is for the retreat action next to a real one (取消 / 返回): still outlined,
    but quieter ink, so a pair of buttons reads as one hierarchy. */

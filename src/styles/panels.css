@@ -291,18 +291,20 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+/* The detail link is a button, so it wears the one button face rather than a sunken
+   chip of its own. Red is the exception, and it is status, not emphasis. */
 .attempt-link {
   flex: none;
   padding: 3px var(--space-3);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
+  border: 1px solid var(--control-border);
+  background: var(--control-face);
   color: var(--text-soft);
   font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
 }
-.attempt-link:hover { border-color: var(--border-strong); color: var(--text); }
+.attempt-link:hover { border-color: var(--control-border-hover); color: var(--text); }
 .attempt-link.has-failures { border-color: var(--bad-border); background: var(--bad-soft); color: var(--bad-ink); }
 
 @media (max-width: 1100px) {

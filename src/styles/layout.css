@@ -486,8 +486,8 @@
     flex: none;
     max-width: 230px;
     scroll-snap-align: center;
-    border-color: var(--border);
-    background: var(--surface-sunken);
+    border-color: var(--control-border);
+    background: var(--control-face);
   }
   .site-directory-list .directory-label small { display: none; }
   /* The strip's dot is worst-wins, so on its own it says "red" for every site with

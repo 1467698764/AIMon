@@ -79,46 +79,45 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --canvas: #eef1f6;
-  --canvas-tint: #e5eaf3;
+  /* The neutral ramp is genuinely neutral. Every grey here used to carry a blue cast
+     (#f4f7fd, #e5ebf6, #d3dbe8), and a screen full of faintly blue chips reads as "blue
+     buttons" even though no brand colour is involved. Cool ink is fine; cool faces are
+     what made the toolbar look tinted. */
+  --canvas: #eeeff3;
+  --canvas-tint: #e6e8ed;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #f5f7fb;
-  --surface-hover: #eef2f8;
-  --surface-active: #e5ebf6;
-  --overlay-scrim: rgba(15, 23, 42, 0.44);
+  --surface-sunken: #f5f6f9;
+  --surface-hover: #eff0f4;
+  --surface-active: #e5e7ed;
+  --overlay-scrim: rgba(20, 22, 28, 0.44);
 
-  --border: #d3dbe8;
-  --border-subtle: #e2e8f1;
-  --border-strong: #bcc7d8;
+  --border: #d8dae2;
+  --border-subtle: #e5e7ed;
+  --border-strong: #c1c5cf;
 
-  /* Controls are neutral. Faces are solid, not vertically graded, and the ink and the
-     glyph are the same near-black as body text: a toolbar of blue-tinted chips with
-     blue icons turns the brand colour into decoration, and once every button carries
-     it nothing in the row reads as more important than anything else. Colour is spent
-     on status only — a badge, a gauge, a running check. Weight, not hue, is what
-     separates the three tiers below. */
+  /* Buttons come in exactly two faces: this white one, and the single near-black
+     primary below. No grey middle tier — three neutral faces in one toolbar (white
+     控件, grey 测活, black 添加站点) read as an unfinished mix rather than a hierarchy.
+     Input-like controls get --field-face, one step down, and that is the whole set. */
   --control-face: #ffffff;
-  --control-face-hover: #f1f5fb;
-  --control-border: #d2dbe8;
-  --control-border-hover: #b7c3d5;
-  /* Secondary (every 测活 entry): a grey face, not a tint. */
-  --secondary-face: #eceff6;
-  --secondary-face-hover: #e2e7f1;
+  --control-face-hover: #f1f2f6;
+  --control-border: #d8dae2;
+  --control-border-hover: #bfc3cd;
   /* Primary is near-black rather than brand blue. One dark slab per screen is easy to
      find, and it leaves blue free to mean "link" and "in progress". */
-  --primary-face: #18212f;
-  --primary-face-hover: #26313f;
+  --primary-face: #1a1d24;
+  --primary-face-hover: #282c35;
   --primary-ink: #ffffff;
   /* Fields are inset instead of raised, so a control inside a white toolbar reads. */
-  --field-face: #f4f7fd;
-  --field-face-disabled: #e6ebf4;
+  --field-face: #f3f4f8;
+  --field-face-disabled: #e8e9ee;
   --glass: color-mix(in srgb, #ffffff 84%, transparent);
 
-  --text: #10192b;
-  --text-soft: #414d64;
-  --text-muted: #5b6780;
-  --text-faint: #727e97;
+  --text: #12151d;
+  --text-soft: #454b58;
+  --text-muted: #5e6572;
+  --text-faint: #767c8a;
   --text-inverse: #ffffff;
 
   --brand: #2f5bea;
@@ -143,59 +142,57 @@
   --bad-soft: #fdeef0;
   --bad-border: #f2ccd3;
 
-  --idle: #5f6d86;
-  --idle-soft: #f1f4f9;
-  --idle-border: #dee4ee;
-  --metric-track: rgba(16, 25, 43, 0.09);
+  --idle: #626873;
+  --idle-soft: #f2f3f6;
+  --idle-border: #e2e4ea;
+  --metric-track: rgba(18, 21, 29, 0.09);
 
   /* Shadows are short and tight rather than wide and soft: depth comes from a crisp
      edge plus a close contact shadow, so a panel reads as a sheet of paper on the
      canvas instead of hovering an inch above it. */
-  --shadow-1: 0 1px 2px rgba(16, 25, 43, 0.05);
-  --shadow-2: 0 1px 2px rgba(16, 25, 43, 0.05), 0 6px 14px -10px rgba(16, 25, 43, 0.2);
-  --shadow-3: 0 22px 44px -22px rgba(16, 25, 43, 0.3), 0 2px 8px rgba(16, 25, 43, 0.06);
+  --shadow-1: 0 1px 2px rgba(18, 21, 29, 0.05);
+  --shadow-2: 0 1px 2px rgba(18, 21, 29, 0.05), 0 6px 14px -10px rgba(18, 21, 29, 0.2);
+  --shadow-3: 0 22px 44px -22px rgba(18, 21, 29, 0.3), 0 2px 8px rgba(18, 21, 29, 0.06);
   --shadow-brand: 0 6px 14px -8px rgba(47, 91, 234, 0.5);
   --ring: 0 0 0 3px rgba(47, 91, 234, 0.22);
-  --grid-line: rgba(16, 25, 43, 0.05);
-  --panel-head: #f8fafd;
+  --grid-line: rgba(18, 21, 29, 0.05);
+  --panel-head: #f9fafb;
 }
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --canvas: #0b0f17;
-  --canvas-tint: #0f1522;
-  --surface: #151b27;
-  --surface-raised: #1a2230;
-  --surface-sunken: #111725;
-  --surface-hover: #1f2836;
-  --surface-active: #263040;
-  --overlay-scrim: rgba(4, 7, 13, 0.66);
+  --canvas: #0d0f13;
+  --canvas-tint: #111318;
+  --surface: #171a20;
+  --surface-raised: #1d2027;
+  --surface-sunken: #12151a;
+  --surface-hover: #22262e;
+  --surface-active: #2a2f39;
+  --overlay-scrim: rgba(6, 7, 9, 0.66);
 
-  --border: #26303f;
-  --border-subtle: #1e2734;
-  --border-strong: #354153;
+  --border: #2a2e37;
+  --border-subtle: #22262e;
+  --border-strong: #3a3f4a;
 
-  --control-face: #202939;
-  --control-face-hover: #2a3446;
-  --control-border: #384558;
-  --control-border-hover: #4c5b73;
-  --secondary-face: #2a3446;
-  --secondary-face-hover: #333e52;
+  --control-face: #23272f;
+  --control-face-hover: #2d323b;
+  --control-border: #3b414c;
+  --control-border-hover: #525866;
   /* Primary inverts in dark mode — a near-white slab with dark ink. A saturated blue
      fill on a near-black canvas has too little contrast to read as the one committing
      action, and tinting it enough to work makes it the loudest thing on screen. */
-  --primary-face: #eef2f9;
-  --primary-face-hover: #dce3ef;
-  --primary-ink: #0b0f17;
-  --field-face: #0e1420;
-  --field-face-disabled: #1b2331;
-  --glass: color-mix(in srgb, #151b27 86%, transparent);
+  --primary-face: #eef0f4;
+  --primary-face-hover: #dcdee4;
+  --primary-ink: #0d0f13;
+  --field-face: #101216;
+  --field-face-disabled: #1c1f25;
+  --glass: color-mix(in srgb, #171a20 86%, transparent);
 
-  --text: #eef2f9;
-  --text-soft: #c3cddd;
-  --text-muted: #a2aec3;
-  --text-faint: #8794aa;
-  --text-inverse: #0b0f17;
+  --text: #eef0f4;
+  --text-soft: #c6cad2;
+  --text-muted: #a6abb6;
+  --text-faint: #8b909c;
+  --text-inverse: #0d0f13;
 
   --brand: #6a8dff;
   --brand-strong: #8aa5ff;
@@ -219,9 +216,9 @@
   --bad-soft: #2c1419;
   --bad-border: #52222c;
 
-  --idle: #9aa6bb;
-  --idle-soft: #171e2b;
-  --idle-border: #26303f;
+  --idle: #9ba0ab;
+  --idle-soft: #191c22;
+  --idle-border: #2a2e37;
   --metric-track: rgba(255, 255, 255, 0.1);
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.36);
@@ -230,6 +227,6 @@
   --shadow-brand: 0 6px 14px -8px rgba(74, 113, 242, 0.6);
   --ring: 0 0 0 3px rgba(106, 141, 255, 0.32);
   --grid-line: rgba(255, 255, 255, 0.05);
-  --panel-head: #1a212e;
+  --panel-head: #1b1f25;
 }
 
