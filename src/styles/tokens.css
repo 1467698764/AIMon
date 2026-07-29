@@ -29,10 +29,10 @@
   --text-xs: 12px;
   --text-sm: 13px;
   --text-base: 14px;
-  --text-md: 15.5px;
-  --text-lg: 18px;
-  --text-xl: 22px;
-  --text-2xl: 29px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -46,79 +46,85 @@
   --z-toast: 120;
 
   --shell-max: 1560px;
-  --header-height: 58px;
-  --directory-width: 268px;
+  --header-height: 52px;
+  /* The directory only ever holds a name and a host, so it does not need to be wide
+     enough to read as a second column of content. */
+  --directory-width: 216px;
   /* Live height of the sticky toolbar, republished by App.tsx whenever its rows wrap. */
-  --workbench-h: 92px;
+  --workbench-h: 88px;
 
-  /* Density-driven layout rhythm. Panel and card padding are deliberately equal: model
-     cells now run edge to edge inside the panel, so their text has to line up with the
-     panel header's. Sections sit close together — the wide grey channels between cards
-     were doing more to break the page apart than the borders were doing to hold it. */
-  --panel-pad: 20px;
-  --card-pad: 20px;
+  /* Density-driven layout rhythm. The panel itself is frameless, so --panel-pad is
+     vertical rhythm rather than an inset: only the model cards still have an inside. */
+  --panel-pad: var(--space-4);
+  --card-pad: var(--space-5);
   --section-gap: var(--space-5);
-  --model-card-min: 300px;
-  --row-height: 36px;
+  --model-card-min: 268px;
+  --row-height: 34px;
   --metric-bar: 6px;
 }
 [data-density='compact'] {
-  --panel-pad: var(--space-5);
-  --card-pad: var(--space-5);
+  --panel-pad: var(--space-3);
+  --card-pad: var(--space-4);
   --section-gap: var(--space-4);
-  --model-card-min: 258px;
-  --row-height: 32px;
+  --model-card-min: 238px;
+  --row-height: 30px;
   --metric-bar: 5px;
   --text-base: 13px;
-  --text-md: 14.5px;
-  --text-lg: 16.5px;
-  --text-xl: 20px;
-  --text-2xl: 25px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 23px;
 }
 
 :root,
 [data-theme='light'] {
   color-scheme: light;
 
-  /* The neutral ramp is genuinely neutral, and the canvas is nearly as light as the
-     surfaces on it. A darker grey canvas turned every gap between two panels into a wide
-     grey channel, which is what made the page read as a pile of loose cards. */
-  --canvas: #f3f4f7;
-  --canvas-tint: #edeef3;
+  /* The neutral ramp carries a faint blue cast on purpose. A strictly neutral black /
+     white / grey screen with grey buttons read as unfinished — three greys stacked on
+     each other have nothing to separate them but luminance. Colour now does the work:
+     the ramp is cool, the primary button is brand blue, and 测活 wears a brand tint. */
+  --canvas: #f2f4f9;
+  --canvas-tint: #eaedf5;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #f7f8fa;
-  --surface-hover: #f1f2f6;
-  --surface-active: #e7e9ef;
-  --overlay-scrim: rgba(20, 22, 28, 0.44);
+  --surface-sunken: #f5f7fc;
+  --surface-hover: #eef1f8;
+  --surface-active: #e3e8f3;
+  --overlay-scrim: rgba(18, 22, 34, 0.44);
 
-  --border: #d8dae2;
-  --border-subtle: #e5e7ed;
-  --border-strong: #c1c5cf;
+  --border: #d5dae7;
+  --border-subtle: #e3e7f1;
+  --border-strong: #bcc4d6;
 
-  /* Buttons come in exactly two faces: this grey one, and the single near-black primary
-     below. The grey is deliberate — a white face on a white panel was marked only by its
-     hairline, so half the controls read as labels until you hovered them. There is still
-     no third neutral tier. Input-like controls get --field-face, which is lighter than the
-     buttons: a field is a hole you type into, a button is a face you press. */
-  --control-face: #e5e7ee;
-  --control-face-hover: #dcdfe8;
-  --control-face-active: #d0d4de;
-  --control-border: #ccd0da;
-  --control-border-hover: #b6bcc8;
-  /* Primary is near-black rather than brand blue. One dark slab per screen is easy to
-     find, and it leaves blue free to mean "link" and "in progress". */
-  --primary-face: #1a1d24;
-  --primary-face-hover: #282c35;
+  /* Ordinary buttons sit on a cool tinted face — light enough to stay quiet next to the
+     blue primary, tinted enough that it never reads as flat grey. Input-like controls
+     get --field-face, a step lighter still: a field is a hole you type into, a button is
+     a face you press. */
+  --control-face: #e9edf7;
+  --control-face-hover: #dee4f2;
+  --control-face-active: #d1d9ec;
+  --control-border: #c9d1e3;
+  --control-border-hover: #adb9d3;
+  /* Primary is the brand blue again. One saturated slab per screen is the fastest thing
+     on the page to find, and it tells the user which action commits. */
+  --primary-face: #2f5bea;
+  --primary-face-hover: #2247c9;
   --primary-ink: #ffffff;
-  --field-face: #f2f3f7;
-  --field-face-disabled: #e9eaef;
+  /* 测活 is what this tool exists for, so it gets a brand-tinted face of its own —
+     visibly the same family as the primary without competing with it. */
+  --accent-face: #e6edff;
+  --accent-face-hover: #d7e2ff;
+  --accent-border: #bacdff;
+  --accent-ink: #21449f;
+  --field-face: #f4f6fc;
+  --field-face-disabled: #e8ebf3;
   --glass: color-mix(in srgb, #ffffff 84%, transparent);
 
-  --text: #12151d;
-  --text-soft: #454b58;
-  --text-muted: #5e6572;
-  --text-faint: #767c8a;
+  --text: #111621;
+  --text-soft: #414a5e;
+  --text-muted: #5b6478;
+  --text-faint: #757e92;
   --text-inverse: #ffffff;
 
   --brand: #2f5bea;
@@ -143,57 +149,61 @@
   --bad-soft: #fdeef0;
   --bad-border: #f2ccd3;
 
-  --idle: #626873;
-  --idle-soft: #f2f3f6;
-  --idle-border: #e2e4ea;
-  --metric-track: rgba(18, 21, 29, 0.09);
+  --idle: #626b7c;
+  --idle-soft: #f1f3f9;
+  --idle-border: #e1e6f0;
+  --metric-track: rgba(17, 22, 33, 0.09);
 
   /* Shadows are short and tight rather than wide and soft: depth comes from a crisp
-     edge plus a close contact shadow, so a panel reads as a sheet of paper on the
+     edge plus a close contact shadow, so a card reads as a sheet of paper on the
      canvas instead of hovering an inch above it. */
-  --shadow-1: 0 1px 2px rgba(18, 21, 29, 0.05);
-  --shadow-3: 0 22px 44px -22px rgba(18, 21, 29, 0.3), 0 2px 8px rgba(18, 21, 29, 0.06);
+  --shadow-1: 0 1px 2px rgba(17, 22, 33, 0.06);
+  --shadow-2: 0 2px 6px -2px rgba(17, 22, 33, 0.12), 0 1px 2px rgba(17, 22, 33, 0.06);
+  --shadow-3: 0 22px 44px -22px rgba(17, 22, 33, 0.3), 0 2px 8px rgba(17, 22, 33, 0.07);
   --shadow-brand: 0 6px 14px -8px rgba(47, 91, 234, 0.5);
   --ring: 0 0 0 3px rgba(47, 91, 234, 0.22);
-  --grid-line: rgba(18, 21, 29, 0.05);
-  --panel-head: #f9fafb;
+  --grid-line: rgba(17, 22, 33, 0.05);
+  --panel-head: #f7f9fd;
 }
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --canvas: #0d0f13;
-  --canvas-tint: #111318;
-  --surface: #171a20;
-  --surface-raised: #1d2027;
-  --surface-sunken: #12151a;
-  --surface-hover: #22262e;
-  --surface-active: #2a2f39;
-  --overlay-scrim: rgba(6, 7, 9, 0.66);
+  --canvas: #0c0f16;
+  --canvas-tint: #10141c;
+  --surface: #161b24;
+  --surface-raised: #1c222c;
+  --surface-sunken: #12161e;
+  --surface-hover: #212834;
+  --surface-active: #29313f;
+  --overlay-scrim: rgba(5, 7, 11, 0.66);
 
-  --border: #2a2e37;
-  --border-subtle: #22262e;
-  --border-strong: #3a3f4a;
+  --border: #29303d;
+  --border-subtle: #212734;
+  --border-strong: #3a4252;
 
-  --control-face: #262b34;
-  --control-face-hover: #30353f;
-  --control-face-active: #383e49;
-  --control-border: #3b414c;
-  --control-border-hover: #525866;
-  /* Primary inverts in dark mode — a near-white slab with dark ink. A saturated blue
-     fill on a near-black canvas has too little contrast to read as the one committing
-     action, and tinting it enough to work makes it the loudest thing on screen. */
-  --primary-face: #eef0f4;
-  --primary-face-hover: #dcdee4;
-  --primary-ink: #0d0f13;
-  --field-face: #101216;
-  --field-face-disabled: #1c1f25;
-  --glass: color-mix(in srgb, #171a20 86%, transparent);
+  --control-face: #242c39;
+  --control-face-hover: #2e3745;
+  --control-face-active: #364052;
+  --control-border: #39424f;
+  --control-border-hover: #4f5a6b;
+  /* Primary stays brand blue in dark mode too. It is the one saturated slab on a
+     near-black canvas, which is exactly what makes it findable. */
+  --primary-face: #3a63e8;
+  --primary-face-hover: #4a72f2;
+  --primary-ink: #ffffff;
+  --accent-face: #1b2444;
+  --accent-face-hover: #232f57;
+  --accent-border: #32407a;
+  --accent-ink: #a8beff;
+  --field-face: #0f131a;
+  --field-face-disabled: #1b202a;
+  --glass: color-mix(in srgb, #161b24 86%, transparent);
 
-  --text: #eef0f4;
-  --text-soft: #c6cad2;
-  --text-muted: #a6abb6;
-  --text-faint: #8b909c;
-  --text-inverse: #0d0f13;
+  --text: #edf0f6;
+  --text-soft: #c4cad6;
+  --text-muted: #a3aab9;
+  --text-faint: #8890a0;
+  --text-inverse: #0c0f16;
 
   --brand: #6a8dff;
   --brand-strong: #8aa5ff;
@@ -217,16 +227,17 @@
   --bad-soft: #2c1419;
   --bad-border: #52222c;
 
-  --idle: #9ba0ab;
-  --idle-soft: #191c22;
-  --idle-border: #2a2e37;
+  --idle: #98a0b0;
+  --idle-soft: #181d26;
+  --idle-border: #29303d;
   --metric-track: rgba(255, 255, 255, 0.1);
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.36);
+  --shadow-2: 0 2px 8px -2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-3: 0 24px 46px -22px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.5);
   --shadow-brand: 0 6px 14px -8px rgba(74, 113, 242, 0.6);
   --ring: 0 0 0 3px rgba(106, 141, 255, 0.32);
   --grid-line: rgba(255, 255, 255, 0.05);
-  --panel-head: #1b1f25;
+  --panel-head: #1a202a;
 }
 

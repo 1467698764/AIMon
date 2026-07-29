@@ -37,8 +37,8 @@
 .logo-mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   flex: none;
   border-radius: var(--radius-md);
   background: linear-gradient(140deg, var(--brand), var(--brand-strong));
@@ -49,8 +49,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 26px;
-  padding: 0 var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
   border: 1px solid var(--good-border);
   background: var(--good-soft);
@@ -79,7 +79,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 32px;
+  height: 30px;
   padding: 0 var(--space-3) 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
@@ -89,7 +89,7 @@
   font-weight: 550;
 }
 .header-search > svg { color: var(--text-faint); }
-.header-search:hover { background: var(--control-face-hover); border-color: var(--control-border-hover); color: var(--text); }
+.header-search:hover { background: var(--accent-face); border-color: var(--accent-border); color: var(--accent-ink); }
 
 /* Workspace */
 .workspace {
@@ -97,7 +97,7 @@
   width: 100%;
   max-width: var(--shell-max);
   margin: 0 auto;
-  padding: var(--space-6) clamp(var(--space-4), 3vw, var(--space-8)) var(--space-9);
+  padding: var(--space-5) clamp(var(--space-4), 3vw, var(--space-8)) var(--space-9);
   display: flex;
   flex-direction: column;
   gap: var(--section-gap);
@@ -133,25 +133,24 @@
 
 /* Workbench: the single sticky toolbar over the site list. Search + status on the
    first line, scope + sort + view controls on the second, one hairline between them.
-   Two separate bands here used to read as two competing toolbars. */
+   It is a band, not a card: no border, no radius and no shadow, just a frosted ground so
+   the list can scroll under it and a hairline marking where it ends. */
 .workbench {
   position: sticky;
-  top: calc(var(--header-height) + var(--space-3));
+  top: var(--header-height);
   z-index: var(--z-sticky);
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--glass);
   backdrop-filter: blur(14px) saturate(160%);
-  box-shadow: var(--shadow-1);
 }
 .workbench-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) 0;
 }
 .workbench-row + .workbench-row { border-top: 1px solid var(--border-subtle); }
 .workbench-spacer { flex: 1 1 auto; }
@@ -197,7 +196,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 32px;
+  height: 30px;
   padding: 0 var(--space-3) 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
@@ -305,20 +304,19 @@
 .site-workspace { display: grid; gap: var(--space-5); align-items: start; }
 .site-workspace.has-sites { grid-template-columns: var(--directory-width) minmax(0, 1fr); }
 
-/* The directory is a rail, not a card: a sidebar of site names does not need its own
-   border, ground and shadow next to the panels it navigates — that framing was one of
-   the four nested frames that made the page read as a pile of cards. Its rows carry
-   the structure instead. */
+/* The directory is a narrow rail, not a card: a sidebar of site names does not need its
+   own border, ground and shadow next to the panels it navigates, and it does not need to
+   be as wide as a column of content either. Its rows carry the structure. */
 .site-directory {
   position: sticky;
   /* --workbench-h is published by App.tsx: the directory has to clear the sticky
      toolbar above it, and that toolbar changes height when its rows wrap. */
-  top: calc(var(--header-height) + var(--workbench-h) + var(--space-5));
+  top: calc(var(--header-height) + var(--workbench-h) + var(--space-4));
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: 0;
-  max-height: calc(100dvh - var(--header-height) - var(--workbench-h) - var(--space-9));
+  max-height: calc(100dvh - var(--header-height) - var(--workbench-h) - var(--space-8));
   min-width: 0;
 }
 .site-directory > header {
@@ -326,15 +324,15 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: 0 calc(var(--space-3) + 3px);
+  padding: 0 calc(var(--space-2) + 3px);
 }
-.site-directory > header strong { font-size: var(--text-md); }
+.site-directory > header strong { font-size: var(--text-sm); }
 /* The filter matches the rows' outer edge, not the rail's: the row list has to keep a
    few pixels of scroll padding for its focus ring, so a flush filter box would sit
    3px inside every row below it and read as a misaligned edge. */
-.site-directory .search-box { flex: none; max-width: none; height: 32px; margin-inline: -3px; }
+.site-directory .search-box { flex: none; max-width: none; height: 28px; margin-inline: -3px; padding-inline: var(--space-3); }
 .site-directory > header .directory-count {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 650;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -343,7 +341,7 @@
 .site-directory-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
   min-height: 0;
   /* Overflow clips the focus ring, so the list keeps a few pixels of breathing room
@@ -354,29 +352,26 @@
 .site-directory-list > button {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   width: 100%;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   text-align: left;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
+    color var(--dur-fast) var(--ease);
 }
-.site-directory-list > button:hover { background: var(--surface-sunken); border-color: var(--border-subtle); }
-/* The selected site reads by ground and ink weight, not by a blue wash: this list sits
-   next to the panels it selects, and a tinted row there competes with the health dots.
-   On the bare rail the chip is the white sheet itself, same relationship as a selected
-   segmented thumb. */
+.site-directory-list > button:hover { background: var(--surface-hover); }
+/* The selected site is the one thing in the rail that has to be unmistakable, so it takes
+   the brand tint used by every other "this one is selected" control in the app. */
 .site-directory-list > button.active {
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-1);
+  background: var(--accent-face);
+  border-color: var(--accent-border);
 }
-.site-directory-list > button.active .directory-label strong { font-weight: 700; }
+.site-directory-list > button.active .directory-label strong { font-weight: 700; color: var(--accent-ink); }
 .site-directory-list .directory-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   flex: none;
   border-radius: 50%;
   background: var(--idle);
@@ -390,29 +385,33 @@
   flex-direction: column;
   min-width: 0;
   flex: 1;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 .site-directory-list .directory-label strong {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .site-directory-list .directory-label small {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .site-directory-empty {
-  padding: var(--space-5) var(--space-3);
-  font-size: var(--text-sm);
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--text-xs);
   color: var(--text-muted);
   text-align: center;
 }
+/* The rail is narrow enough that the breakdown has to give the site name room. */
+.site-directory-list .health-breakdown { gap: var(--space-2); font-size: var(--text-2xs); }
+.site-directory-list .health-breakdown i { width: 6px; height: 6px; }
 
-.site-list { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+/* Frameless panels need the gap between two sites to do the work the borders used to. */
+.site-list { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
 .site-entry { min-width: 0; }
 
 /* Responsive: one breakpoint collapses the directory, one compacts the header. */
@@ -448,7 +447,8 @@
   .site-directory-list > button {
     width: auto;
     flex: none;
-    max-width: 230px;
+    max-width: 220px;
+    padding: var(--space-2) var(--space-3);
     scroll-snap-align: center;
     border-color: var(--control-border);
     background: var(--control-face);
@@ -459,7 +459,7 @@
   .site-directory-list .health-breakdown > span:not(.failed) { display: none; }
   /* Two stacked sticky bars would fight over the same offset: below this width the
      horizontal site strip is the navigator, so the toolbar scrolls away with the page. */
-  .workbench { position: static; box-shadow: var(--shadow-1); backdrop-filter: none; background: var(--surface); }
+  .workbench { position: static; backdrop-filter: none; background: transparent; }
 }
 
 @media (max-width: 860px) {

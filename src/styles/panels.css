@@ -1,15 +1,10 @@
-/* Site panel. One sheet of paper on the canvas — a tight curve, a hairline edge and a
-   contact shadow. Everything inside it (group headers, model cells) is divided by
-   hairlines rather than by gaps, so the panel reads as one object instead of a tray
-   holding a dozen smaller cards. */
+/* Site panel. Frameless: a site is a section of the page, not an object sitting on it, so
+   it has no border, no ground and no shadow of its own — its header type and one hairline
+   carry the structure. The model cards inside it are the only real cards left, which is
+   what makes them read as the things you act on. */
 .site-panel {
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-  overflow: hidden;
   min-width: 0;
 }
 .site-panel-header {
@@ -17,38 +12,38 @@
   grid-template-columns: auto minmax(0, 1.1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--panel-pad);
-  background: var(--panel-head);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--panel-pad) 0;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
 }
 .site-reorder { display: flex; align-items: center; gap: 2px; }
 .drag-handle,
 .collapse {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--text-faint);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .drag-handle { cursor: grab; }
 .drag-handle:hover:not(:disabled),
-.collapse:hover { background: var(--surface-hover); color: var(--text); }
+.collapse:hover { background: var(--accent-face); color: var(--accent-ink); }
 .drag-handle:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.site-identity { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.site-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .site-mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   flex: none;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
-  color: var(--text-muted);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-face);
+  color: var(--brand);
 }
 .site-identity > div:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .site-name-line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex-wrap: wrap; }
@@ -91,25 +86,29 @@
 .platform.sub2api,
 .platform.manual { border-color: var(--border); background: var(--surface-sunken); color: var(--text-muted); }
 
-.site-facts { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
-.site-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.site-facts small { font-size: var(--text-xs); font-weight: 650; color: var(--text-muted); }
-.site-facts strong { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
-.site-facts strong em { font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
-.site-facts span { font-size: var(--text-sm); color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.site-facts { display: flex; align-items: center; gap: var(--space-5); flex-wrap: wrap; }
+.site-facts > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.site-facts small { font-size: var(--text-2xs); font-weight: 650; color: var(--text-muted); }
+.site-facts strong { font-size: var(--text-base); font-variant-numeric: tabular-nums; }
+.site-facts strong em { font-size: var(--text-2xs); font-weight: 600; color: var(--text-muted); }
+.site-facts span { font-size: var(--text-xs); color: var(--text-soft); font-variant-numeric: tabular-nums; }
 
 .site-actions { display: flex; align-items: center; gap: var(--space-2); justify-content: flex-end; }
 .mobile-order { display: none; }
 
+/* The stale-metadata warning is a notice, so it keeps a tinted body of its own even
+   though the panel around it is frameless. */
 .site-sync-warning {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--panel-pad);
-  border-bottom: 1px solid var(--warn-border);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warn-border);
   background: var(--warn-soft);
   color: var(--warn-ink);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .site-sync-warning > svg { flex: none; }
 .site-sync-warning > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -117,38 +116,40 @@
 
 /* Groups */
 .group-stack { display: flex; flex-direction: column; }
+/* A hairline above every group but the first: without the panel frame, the gap alone did
+   not say where one group's cards stopped and the next group began. */
 .group + .group { border-top: 1px solid var(--border-subtle); }
 .group-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--panel-pad);
+  padding: var(--space-4) 0 var(--space-3);
   background: transparent;
 }
 .group-leading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.group-title { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-left: 2px; }
-.group-title > svg { flex: none; color: var(--text-faint); }
+.group-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin-left: 2px; }
+.group-title > svg { flex: none; color: var(--brand); }
 .group-title h3 {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .group-title span {
   flex: none;
-  font-size: var(--text-xs);
-  font-weight: 650;
-  color: var(--text-muted);
-  padding: 1px var(--space-3);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--accent-ink);
+  padding: 1px var(--space-2);
   border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  background: var(--accent-face);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
 }
 .group-meta {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
   flex-wrap: wrap;
   font-size: var(--text-xs);
   color: var(--text-muted);
@@ -158,42 +159,44 @@
 .group-meta .standard-ratio { color: var(--text); }
 .group-actions { display: flex; align-items: center; gap: var(--space-2); }
 
-/* Model cells, not model cards. Every model used to be a bordered, shadowed card floating
-   on a sunken well inside a bordered panel — three frames deep, with a grey channel around
-   each one. They are now cells of a single table: flat surface, hairline separators drawn
-   by each cell's own inset shadow (so no line is ever doubled), and the status colour
-   riding the top edge. The grid is pulled 1px left so the first column's separator hides
-   under the panel border; the panel clips the 1px that lands past its right edge. */
+/* Model cards. These are the one thing on the page that stays a card: a model is the
+   object you read, compare and act on, so it gets its own edge, ground, radius and contact
+   shadow. Turning them into flat cells of a table made the whole list one grey field with
+   nothing to grab. The status colour rides the top edge and tints the border, so a row of
+   cards can be scanned by colour alone. */
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--model-card-min), 1fr));
-  margin-left: -1px;
-  background: var(--surface);
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
 }
-/* Status rides a soft accent along the top edge. It stops well short of the far edge:
-   a full-width 3px slab on every cell turned each row of cells into a rainbow rule
-   running the width of the panel. The badge already names the state. */
 .model-card {
-  --card-accent: var(--idle-border);
+  --card-accent: var(--border-strong);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: var(--card-pad);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--card-accent) 26%, var(--border));
   background: var(--surface);
-  box-shadow: inset 1px 0 0 var(--border-subtle), inset 0 1px 0 var(--border-subtle);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
   min-width: 0;
-  transition: background var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .model-card::before {
   content: '';
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 12%, transparent) 62%, transparent);
+  height: 3px;
+  background: var(--card-accent);
 }
-.model-card:hover { background: var(--surface-sunken); }
+.model-card:hover {
+  border-color: color-mix(in srgb, var(--card-accent) 52%, var(--border-strong));
+  box-shadow: var(--shadow-2);
+}
 .model-card-excellent { --card-accent: var(--good); }
 .model-card-available { --card-accent: var(--warn); }
 .model-card-failed { --card-accent: var(--bad); }
@@ -202,11 +205,11 @@
 .model-card.queued { --card-accent: var(--brand-border); }
 
 .model-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.model-card-title { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.model-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .model-card-title h4 {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 650;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,13 +217,13 @@
 .model-rank {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex: none;
   border-radius: var(--radius-sm);
-  background: var(--surface-active);
-  color: var(--text-soft);
-  font-size: var(--text-xs);
+  background: var(--accent-face);
+  color: var(--accent-ink);
+  font-size: var(--text-2xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -231,12 +234,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   background: var(--surface-sunken);
 }
-.success-readout > .metric-value { font-size: var(--text-lg); font-weight: 700; }
+.success-readout > .metric-value { font-size: var(--text-md); font-weight: 700; }
 .success-readout > .metric-value.tone-neutral { color: var(--text-muted); font-size: var(--text-base); }
 .success-readout.tone-good { border-color: var(--good-border); background: var(--good-soft); }
 .success-readout.tone-warning { border-color: var(--warn-border); background: var(--warn-soft); }
@@ -252,21 +255,21 @@
 /* Shared three-column grid so labels, gauges and readouts line up across every row. */
 .model-metrics {
   display: grid;
-  grid-template-columns: auto minmax(36px, 1fr) auto;
+  grid-template-columns: auto minmax(32px, 1fr) auto;
   align-items: center;
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-2) var(--space-3);
 }
 
 .model-card-footer {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
 /* Three icon controls share this row with a timestamp and the detail link, so they
    run one step smaller than the standard icon button. */
-.model-card-footer .icon-button { width: 28px; height: 28px; }
+.model-card-footer .icon-button { width: 26px; height: 26px; }
 .model-checked {
   display: inline-flex;
   align-items: center;
@@ -317,7 +320,7 @@
   .site-panel-header {
     grid-template-columns: auto minmax(0, 1fr);
     gap: var(--space-3);
-    padding: var(--space-4);
+    padding: var(--space-4) 0;
   }
   .site-reorder .drag-handle { display: none; }
   /* Reorder on the left, the destructive-capable cluster on the right. Spreading all
@@ -333,7 +336,7 @@
   .group-header {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-4) 0 var(--space-3);
   }
   .group-leading,
   .group-meta,
@@ -343,6 +346,6 @@
   .group-actions { justify-content: flex-start; }
   .group-leading .drag-handle { display: none; }
   .model-grid { grid-template-columns: minmax(0, 1fr); }
-  .site-sync-warning { padding-inline: var(--space-4); flex-wrap: wrap; }
+  .site-sync-warning { flex-wrap: wrap; }
   .site-sync-warning > span { white-space: normal; overflow: visible; }
 }

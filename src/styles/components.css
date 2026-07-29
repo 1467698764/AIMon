@@ -1,34 +1,33 @@
-/* Buttons. Grey face, hairline border, glyph in the same ink as the label, tight 8px
-   corner. No vertical gloss and no hover lift. There are exactly two button faces in the
-   whole app: this grey one and the single near-black primary. The grey used to be white,
-   and a white button on a white panel over a grey-white canvas was marked only by its
-   hairline — the control disappeared into whatever it sat on. Emphasis is still the dark
-   slab, and there is only ever one of those in view. A toggle that is *on* inverts the
-   relationship instead of adding a third face: it becomes the raised white chip.
-   Blue means link, focus, and check-in-progress. */
+/* Buttons. Three faces, and colour is what separates them: a cool tinted neutral for
+   ordinary actions, a brand-tinted face for 测活 (the action this tool exists for), and a
+   solid brand-blue slab for the one committing action in view. An all-grey set of controls
+   on a grey-white page had nothing but luminance to tell the tiers apart, which read as
+   unfinished rather than as restrained. Tight 8px corner, hairline border, no gloss and no
+   hover lift. */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 34px;
-  padding: 0 var(--space-5);
+  min-height: 32px;
+  padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
   background: var(--control-face);
-  color: var(--text);
-  font-size: var(--text-base);
+  color: var(--text-soft);
+  font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease);
 }
-.button > svg { flex: none; color: var(--text-muted); }
+.button > svg { flex: none; color: var(--text-faint); }
 .button:hover:not(:disabled) {
   background: var(--control-face-hover);
   border-color: var(--control-border-hover);
+  color: var(--text);
 }
-.button:hover:not(:disabled) > svg { color: var(--text); }
+.button:hover:not(:disabled) > svg { color: var(--text-soft); }
 .button:active:not(:disabled) { background: var(--control-face-active); }
 .button:disabled { opacity: 0.45; }
 
@@ -36,24 +35,36 @@
   background: var(--primary-face);
   border-color: transparent;
   color: var(--primary-ink);
+  box-shadow: var(--shadow-brand);
 }
 .button.primary > svg,
 .button.primary:hover:not(:disabled) > svg { color: currentColor; }
-.button.primary:hover:not(:disabled) { background: var(--primary-face-hover); border-color: transparent; }
+.button.primary:hover:not(:disabled) { background: var(--primary-face-hover); border-color: transparent; color: var(--primary-ink); }
 .button.primary:active:not(:disabled) { background: var(--primary-face); }
 
-/* .accent marks the action a monitoring tool exists for (every 测活 entry). It keeps the
-   standard face and pays for its emphasis with a heavier label and full-strength glyph:
-   giving it its own grey ground made three different neutral faces share one row. */
-.button.accent { font-weight: 650; }
-.button.accent > svg { color: var(--text-soft); }
+/* .accent marks every 测活 entry: a brand tint, so the action the tool exists for is the
+   same colour family as the primary without shouting as loudly as a solid slab. */
+.button.accent {
+  border-color: var(--accent-border);
+  background: var(--accent-face);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+.button.accent > svg,
+.button.accent:hover:not(:disabled) > svg { color: currentColor; }
+.button.accent:hover:not(:disabled) {
+  background: var(--accent-face-hover);
+  border-color: var(--brand);
+  color: var(--accent-ink);
+}
+.button.accent:active:not(:disabled) { background: var(--accent-face-hover); }
 
 /* Ghost is for the retreat action next to a real one (取消 / 返回): still outlined,
    but quieter ink, so a pair of buttons reads as one hierarchy. */
 .button.ghost {
   background: transparent;
   border-color: var(--border);
-  color: var(--text-soft);
+  color: var(--text-muted);
 }
 .button.ghost > svg { color: var(--text-faint); }
 .button.ghost:hover:not(:disabled) {
@@ -62,23 +73,22 @@
   color: var(--text);
 }
 
-/* A toggle that is currently on: raised white chip against the grey face of its
-   neighbours, same relationship as the segmented control's selected thumb. */
+/* A toggle that is currently on wears the brand tint — the same "this one is selected"
+   language as the segmented control's thumb, and unmistakable at a glance. */
 .button.active {
-  background: var(--surface);
-  border-color: var(--border-strong);
-  color: var(--text);
+  background: var(--accent-face);
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
   font-weight: 650;
-  box-shadow: var(--shadow-1);
 }
-.button.active > svg { color: var(--text); }
-.button.active:hover:not(:disabled) { background: var(--surface); border-color: var(--border-strong); }
+.button.active > svg { color: currentColor; }
+.button.active:hover:not(:disabled) { background: var(--accent-face-hover); border-color: var(--brand); color: var(--accent-ink); }
 
 .button.danger { background: var(--bad); border-color: transparent; color: #fff; }
 .button.danger > svg { color: currentColor; }
-.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; }
+.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; color: #fff; }
 
-.button.compact { min-height: 30px; padding: 0 var(--space-4); font-size: var(--text-sm); }
+.button.compact { min-height: 28px; padding: 0 var(--space-3); font-size: var(--text-xs); }
 .button.block { width: 100%; }
 /* Icon-only buttons need a resting face too, otherwise the only thing marking them
    as controls is a hover state the user has to find first. */
@@ -86,32 +96,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   flex: none;
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
   background: var(--control-face);
-  color: var(--text-soft);
+  color: var(--text-muted);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease);
 }
 .icon-button:hover:not(:disabled) {
-  background: var(--control-face-hover);
-  border-color: var(--control-border-hover);
-  color: var(--text);
+  background: var(--accent-face);
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
 }
 .icon-button:disabled { opacity: 0.4; }
 /* Chrome that sits on an already-busy strip (header, modal title bar) stays quiet
    until hover; the buttons there are next to a title, not to other buttons. */
 .icon-button.quiet { border-color: transparent; background: transparent; }
-.icon-button.quiet:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border); }
+.icon-button.quiet:hover:not(:disabled) { background: var(--accent-face); border-color: var(--accent-border); color: var(--accent-ink); }
 .icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad-border); color: var(--bad); }
 .icon-button.active {
-  background: var(--surface);
-  border-color: var(--border-strong);
-  color: var(--text);
-  box-shadow: var(--shadow-1);
+  background: var(--accent-face);
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
 }
 
 .text-button {
@@ -126,7 +135,7 @@
 /* Segmented control shared by status filters, mode switches and view toggles.
    The tray is a rounded rectangle, not a capsule: it holds square-ish text buttons, and
    a pill tray forces every thumb inside it to be a lozenge too. The selected thumb is a
-   plain white chip rather than a tint — that is what makes the choice legible. */
+   white chip with brand ink — the colour is what makes the choice legible at a glance. */
 .segmented {
   display: inline-flex;
   align-items: center;
@@ -140,22 +149,22 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 26px;
-  padding: 0 var(--space-4);
+  min-height: 24px;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.segmented > button:hover:not(:disabled) { color: var(--text); background: var(--surface-active); }
+.segmented > button:hover:not(:disabled) { color: var(--accent-ink); background: var(--accent-face); }
 .segmented > button.active {
   background: var(--surface);
-  color: var(--text);
+  color: var(--brand-strong);
   box-shadow: var(--shadow-1);
 }
 .segmented > button > b { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 650; }
-.segmented > button.active > b { color: var(--text); }
+.segmented > button.active > b { color: var(--brand); }
 /* Status badges */
 .status {
   display: inline-flex;
@@ -231,7 +240,9 @@
 .metric-gauge.tone-good { color: var(--good); }
 .metric-gauge.tone-warning { color: var(--warn); }
 .metric-gauge.tone-bad { color: var(--bad); }
-.metric-gauge.empty { box-shadow: inset 0 0 0 1px var(--border); background: transparent; }
+/* No measurement yet: a faint track rather than an outlined pill, which read as an
+   empty input field sitting in the middle of the card. */
+.metric-gauge.empty { background: color-mix(in srgb, var(--metric-track) 45%, transparent); }
 .metric-gauge > .gauge-fill {
   display: block;
   height: 100%;
@@ -263,7 +274,7 @@ input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
   width: 100%;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
@@ -273,7 +284,7 @@ textarea {
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
-textarea { padding: var(--space-3) var(--space-4); min-height: 76px; resize: vertical; }
+textarea { padding: var(--space-3) var(--space-4); min-height: 72px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 input:focus, select:focus, textarea:focus {
   outline: none;
@@ -328,10 +339,10 @@ input[type='checkbox'], input[type='radio'] {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex: 1 1 240px;
+  flex: 1 1 220px;
   min-width: 0;
-  max-width: 420px;
-  height: 34px;
+  max-width: 400px;
+  height: 32px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
