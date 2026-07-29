@@ -92,19 +92,24 @@
   --border-subtle: #e2e8f1;
   --border-strong: #bcc7d8;
 
-  /* Controls carry their own flat face and a hairline border. Faces are solid, not
-     vertically graded: a glossy top-lit chip is the 2014 button, and once every
-     control has one the whole toolbar reads as embossed plastic. Contrast against the
-     surface behind it, not a highlight, is what makes a control look pressable. */
+  /* Controls are neutral. Faces are solid, not vertically graded, and the ink and the
+     glyph are the same near-black as body text: a toolbar of blue-tinted chips with
+     blue icons turns the brand colour into decoration, and once every button carries
+     it nothing in the row reads as more important than anything else. Colour is spent
+     on status only — a badge, a gauge, a running check. Weight, not hue, is what
+     separates the three tiers below. */
   --control-face: #ffffff;
   --control-face-hover: #f1f5fb;
   --control-border: #d2dbe8;
-  --control-border-hover: #a8bbe4;
-  /* Accent controls (every 测活 entry) sit between neutral and primary. */
-  --accent-face: #eaf0ff;
-  --accent-face-hover: #dbe6ff;
-  --primary-face: #2f5bea;
-  --primary-face-hover: #2247c9;
+  --control-border-hover: #b7c3d5;
+  /* Secondary (every 测活 entry): a grey face, not a tint. */
+  --secondary-face: #eceff6;
+  --secondary-face-hover: #e2e7f1;
+  /* Primary is near-black rather than brand blue. One dark slab per screen is easy to
+     find, and it leaves blue free to mean "link" and "in progress". */
+  --primary-face: #18212f;
+  --primary-face-hover: #26313f;
+  --primary-ink: #ffffff;
   /* Fields are inset instead of raised, so a control inside a white toolbar reads. */
   --field-face: #f4f7fd;
   --field-face-disabled: #e6ebf4;
@@ -173,13 +178,15 @@
   --control-face: #202939;
   --control-face-hover: #2a3446;
   --control-border: #384558;
-  --control-border-hover: #55688a;
-  --accent-face: #1c2745;
-  --accent-face-hover: #243255;
-  /* A bright face with dark ink, matching --brand-contrast: on a near-black canvas a
-     deep blue fill has too little contrast to read as the committing action. */
-  --primary-face: #6a8dff;
-  --primary-face-hover: #829eff;
+  --control-border-hover: #4c5b73;
+  --secondary-face: #2a3446;
+  --secondary-face-hover: #333e52;
+  /* Primary inverts in dark mode — a near-white slab with dark ink. A saturated blue
+     fill on a near-black canvas has too little contrast to read as the one committing
+     action, and tinting it enough to work makes it the loudest thing on screen. */
+  --primary-face: #eef2f9;
+  --primary-face-hover: #dce3ef;
+  --primary-ink: #0b0f17;
   --field-face: #0e1420;
   --field-face-disabled: #1b2331;
   --glass: color-mix(in srgb, #151b27 86%, transparent);

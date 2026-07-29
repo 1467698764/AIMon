@@ -33,7 +33,7 @@
 }
 .drag-handle { cursor: grab; }
 .drag-handle:hover:not(:disabled),
-.collapse:hover { background: var(--brand-soft); color: var(--brand); }
+.collapse:hover { background: var(--surface-hover); color: var(--text); }
 .drag-handle:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .site-identity { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
@@ -44,9 +44,9 @@
   height: 34px;
   flex: none;
   border-radius: var(--radius-md);
-  border: 1px solid var(--brand-border);
-  background: var(--brand-soft-strong);
-  color: var(--brand-strong);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
 }
 .site-identity > div:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .site-name-line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex-wrap: wrap; }
@@ -83,9 +83,11 @@
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-.platform.newapi { border-color: var(--brand-border); background: var(--brand-soft); color: var(--brand-strong); }
-.platform.sub2api { border-color: var(--good-border); background: var(--good-soft); color: var(--good-ink); }
-.platform.manual { border-color: var(--warn-border); background: var(--warn-soft); color: var(--warn-ink); }
+/* Platform is a fact about the site, not a verdict on it, so all three read the same
+   neutral. Green and amber tags here competed with the health colours beside them. */
+.platform.newapi,
+.platform.sub2api,
+.platform.manual { border-color: var(--border); background: var(--surface-sunken); color: var(--text-muted); }
 
 .site-facts { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
 .site-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -124,7 +126,7 @@
 }
 .group-leading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .group-title { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-left: 2px; }
-.group-title > svg { flex: none; color: var(--brand); }
+.group-title > svg { flex: none; color: var(--text-faint); }
 .group-title h3 {
   font-size: var(--text-md);
   overflow: hidden;
@@ -151,7 +153,7 @@
 }
 .group-meta > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .group-meta b { color: var(--text); font-variant-numeric: tabular-nums; }
-.group-meta .standard-ratio { color: var(--brand-strong); }
+.group-meta .standard-ratio { color: var(--text); }
 .group-actions { display: flex; align-items: center; gap: var(--space-2); }
 
 /* Model cards. The grid is a sunken well rather than more of the panel's own white:
@@ -220,8 +222,8 @@
   height: 22px;
   flex: none;
   border-radius: var(--radius-sm);
-  background: var(--brand-soft-strong);
-  color: var(--brand-strong);
+  background: var(--surface-active);
+  color: var(--text-soft);
   font-size: var(--text-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

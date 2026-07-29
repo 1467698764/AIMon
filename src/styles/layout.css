@@ -88,7 +88,7 @@
   font-size: var(--text-sm);
   font-weight: 550;
 }
-.header-search > svg { color: var(--brand); }
+.header-search > svg { color: var(--text-faint); }
 .header-search:hover { background: var(--control-face-hover); border-color: var(--control-border-hover); color: var(--text); }
 
 /* Workspace */
@@ -165,7 +165,7 @@
   font-weight: 650;
   color: var(--text-muted);
 }
-.overview-tile > header svg { flex: none; color: var(--brand); }
+.overview-tile > header svg { flex: none; color: var(--text-faint); }
 .overview-tile > strong { font-size: var(--text-xl); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 .overview-tile > strong em { font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
 .overview-tile > small { font-size: var(--text-xs); color: var(--text-muted); }
@@ -178,7 +178,6 @@
 .overview-tile.tone-bad { background: color-mix(in srgb, var(--bad-soft) 60%, var(--surface)); }
 /* The trailing two tiles report configuration, not health; sunken ground says so. */
 .overview-tile.is-setting { background: var(--surface-sunken); }
-.overview-tile.is-setting > header svg { color: var(--text-faint); }
 .overview-tile.is-setting > strong { font-size: var(--text-lg); color: var(--text-soft); }
 /* Only once all eight share one row can a vertical rule mean "settings start here". */
 @media (min-width: 1180px) {
@@ -221,7 +220,7 @@
   min-width: 0;
   flex: 0 1 auto;
 }
-.workbench-scope > svg { flex: none; color: var(--brand); }
+.workbench-scope > svg { flex: none; color: var(--text-faint); }
 .workbench-scope > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .workbench-scope small {
   font-size: var(--text-2xs);
@@ -257,7 +256,7 @@
   background: var(--field-face);
   color: var(--text-muted);
 }
-.sort-select > svg { color: var(--brand); }
+.sort-select > svg { color: var(--text-faint); }
 .sort-select:focus-within { border-color: var(--brand); background: var(--surface); box-shadow: var(--ring); }
 .sort-select > select {
   min-height: 0;
@@ -411,11 +410,13 @@
     box-shadow var(--dur-fast) var(--ease);
 }
 .site-directory-list > button:hover { background: var(--surface-hover); }
+/* The selected site reads by ground and ink weight, not by a blue wash: this list sits
+   next to the panels it selects, and a tinted row there competes with the health dots. */
 .site-directory-list > button.active {
-  background: var(--brand-soft);
-  border-color: var(--brand-border);
-  box-shadow: var(--shadow-1);
+  background: var(--surface-active);
+  border-color: var(--border-strong);
 }
+.site-directory-list > button.active .directory-label strong { font-weight: 700; }
 .site-directory-list .directory-dot {
   width: 8px;
   height: 8px;

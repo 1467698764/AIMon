@@ -1,7 +1,9 @@
-/* Buttons. Flat face, hairline border, coloured glyph, tight 8px corner. No vertical
-   gloss and no hover lift: a top-lit gradient chip that rises off the page is the
-   button of a decade ago, and a toolbar of them reads as embossed plastic. Hierarchy is
-   face weight — primary (filled) > accent (tinted, every 测活 entry) > default > ghost. */
+/* Buttons. Neutral face, hairline border, glyph in the same ink as the label, tight 8px
+   corner. No vertical gloss and no hover lift. Nothing here is blue: a row of blue-tinted
+   buttons with blue icons spends the brand colour on chrome, and then nothing in the row
+   reads as more important than the rest. Hierarchy is face weight, not hue — primary
+   (near-black, the one committing action) > secondary (grey, every 测活 entry) > default
+   (white) > ghost. Blue is left to mean link, focus, and check-in-progress. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -19,32 +21,38 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease);
 }
-.button > svg { flex: none; color: var(--brand); }
+.button > svg { flex: none; color: var(--text-muted); }
 .button:hover:not(:disabled) {
   background: var(--control-face-hover);
   border-color: var(--control-border-hover);
 }
+.button:hover:not(:disabled) > svg { color: var(--text); }
 .button:active:not(:disabled) { background: var(--surface-active); }
 .button:disabled { opacity: 0.45; }
 
 .button.primary {
   background: var(--primary-face);
   border-color: transparent;
-  color: var(--brand-contrast);
+  color: var(--primary-ink);
 }
-.button.primary > svg { color: currentColor; }
+.button.primary > svg,
+.button.primary:hover:not(:disabled) > svg { color: currentColor; }
 .button.primary:hover:not(:disabled) { background: var(--primary-face-hover); border-color: transparent; }
 .button.primary:active:not(:disabled) { background: var(--primary-face); }
 
-/* Accent marks the action a monitoring tool exists for. Tinted face, brand ink. */
+/* Secondary marks the action a monitoring tool exists for. A grey face is enough to
+   separate it from the plain controls beside it without adding another colour. */
 .button.accent {
-  background: var(--accent-face);
-  border-color: var(--brand-border);
-  color: var(--brand-strong);
+  background: var(--secondary-face);
+  border-color: var(--control-border);
+  color: var(--text);
+  font-weight: 650;
 }
-.button.accent > svg { color: var(--brand); }
-.button.accent:hover:not(:disabled) { background: var(--accent-face-hover); border-color: var(--brand); }
-.button.accent:active:not(:disabled) { background: var(--accent-face-hover); }
+.button.accent:hover:not(:disabled) {
+  background: var(--secondary-face-hover);
+  border-color: var(--control-border-hover);
+}
+.button.accent:active:not(:disabled) { background: var(--secondary-face-hover); }
 
 /* Ghost is for the retreat action next to a real one (取消 / 返回): still outlined,
    but quieter ink, so a pair of buttons reads as one hierarchy. */
@@ -60,11 +68,14 @@
   color: var(--text);
 }
 
+/* A toggle that is currently on: pressed-in ground and full-strength ink. */
 .button.active {
-  background: var(--accent-face-hover);
-  border-color: var(--brand);
-  color: var(--brand-strong);
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 650;
 }
+.button.active > svg { color: var(--text); }
 
 .button.danger { background: var(--bad); border-color: transparent; color: #fff; }
 .button.danger > svg { color: currentColor; }
@@ -89,20 +100,20 @@
     border-color var(--dur-fast) var(--ease);
 }
 .icon-button:hover:not(:disabled) {
-  background: var(--accent-face);
-  border-color: var(--brand-border);
-  color: var(--brand);
+  background: var(--control-face-hover);
+  border-color: var(--control-border-hover);
+  color: var(--text);
 }
 .icon-button:disabled { opacity: 0.4; }
 /* Chrome that sits on an already-busy strip (header, modal title bar) stays quiet
    until hover; the buttons there are next to a title, not to other buttons. */
 .icon-button.quiet { border-color: transparent; background: transparent; }
-.icon-button.quiet:hover:not(:disabled) { background: var(--brand-soft); border-color: var(--brand-border); }
+.icon-button.quiet:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border); }
 .icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad-border); color: var(--bad); }
 .icon-button.active {
-  background: var(--accent-face-hover);
-  border-color: var(--brand);
-  color: var(--brand-strong);
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .text-button {
@@ -146,7 +157,7 @@
   box-shadow: var(--shadow-1);
 }
 .segmented > button > b { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 650; }
-.segmented > button.active > b { color: var(--brand); }
+.segmented > button.active > b { color: var(--text); }
 /* Status badges */
 .status {
   display: inline-flex;
@@ -331,7 +342,7 @@ input[type='checkbox'], input[type='radio'] {
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
-.search-box > svg { flex: none; color: var(--brand); }
+.search-box > svg { flex: none; color: var(--text-faint); }
 .search-box:focus-within { border-color: var(--brand); background: var(--surface); box-shadow: var(--ring); outline: none; }
 .search-box > input {
   flex: 1;
@@ -426,8 +437,9 @@ kbd {
   width: 60px;
   height: 60px;
   border-radius: var(--radius-lg);
-  background: var(--brand-soft);
-  color: var(--brand);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text-faint);
 }
 
 .progress-track {
@@ -465,13 +477,13 @@ kbd {
   padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--brand);
+  border-left: 3px solid var(--border-strong);
   background: var(--surface-raised);
   box-shadow: var(--shadow-3);
   pointer-events: auto;
   animation: aimon-pop var(--dur) var(--ease-out);
 }
-.toast > svg { flex: none; margin-top: 1px; color: var(--brand); }
+.toast > svg { flex: none; margin-top: 1px; color: var(--text-muted); }
 .toast > p {
   flex: 1;
   min-width: 0;
