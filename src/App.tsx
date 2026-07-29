@@ -10,7 +10,7 @@ import {
   healthKey, siteHasVisibleModels, sortModes, statusCounts, statusLabels, statusOrder, summarizeHealthTargets,
   summarizeRefreshingJobs, type HealthScope, type SortMode, type StatusFilter,
 } from './lib/health'
-import { applyDensity, applyTheme, prefs, type Density, type SiteViewMode, type ThemeChoice } from './lib/prefs'
+import { applyDensity, applyTheme, flippedTheme, prefs, type Density, type SiteViewMode, type ThemeChoice } from './lib/prefs'
 import { resolveSiteView } from './lib/view'
 import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
@@ -26,7 +26,6 @@ import { ToastStack, useToasts, type ToastTone } from './components/Toasts'
 import { Workbench } from './components/Workbench'
 import { LoadingScreen, Modal } from './components/primitives'
 
-const themeOrder: readonly ThemeChoice[] = ['auto', 'light', 'dark']
 const themeNames: Record<ThemeChoice, string> = { auto: '跟随系统', light: '浅色', dark: '深色' }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -566,12 +565,18 @@ export function App() {
     })
   }
 
-  function cycleTheme() {
+  /** Every press has to change what is on screen, so the flip reads the resolved theme. */
+  function toggleTheme() {
     setTheme((current) => {
-      const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length]
+      const next = flippedTheme(current)
       prefs.setTheme(next)
       return next
     })
+  }
+
+  function useSystemTheme() {
+    prefs.setTheme('auto')
+    setTheme('auto')
   }
 
   function changeSortMode(mode: SortMode) {
@@ -749,7 +754,7 @@ export function App() {
       j: () => stepSite(1),
       k: () => stepSite(-1),
       d: () => toggleDensity(),
-      t: () => cycleTheme(),
+      t: () => toggleTheme(),
     }
     const handler = handlers[event.key.toLowerCase()]
     if (!handler) return
@@ -799,7 +804,8 @@ export function App() {
     { id: 'expand', section: '视图', label: siteView === 'focus' ? '展开本站' : '展开所有站点', hint: 'E', icon: <ChevronsDown size={15} />, run: () => setScopeExpanded(true) },
     { id: 'collapse', section: '视图', label: siteView === 'focus' ? '收起本站' : '收起所有站点', hint: 'C', icon: <ChevronsUp size={15} />, run: () => setScopeExpanded(false) },
     { id: 'density', section: '视图', label: density === 'compact' ? '切换为舒适布局' : '切换为紧凑布局', hint: 'D', icon: <Rows3 size={15} />, run: toggleDensity },
-    { id: 'theme', section: '视图', label: `切换主题（当前：${themeNames[theme]}）`, hint: 'T', icon: <SunMoon size={15} />, run: cycleTheme },
+    { id: 'theme', section: '视图', label: `切换为${themeNames[flippedTheme(theme)]}主题`, hint: 'T', icon: <SunMoon size={15} />, run: toggleTheme },
+    ...(theme === 'auto' ? [] : [{ id: 'theme-auto', section: '视图', label: '主题跟随系统', icon: <SunMoon size={15} />, run: useSystemTheme }]),
     ...sortModes.map((mode) => ({
       id: `sort:${mode.value}`, section: '排序', label: `排序：${mode.label}`, hint: mode.hint,
       icon: <ArrowUpDown size={15} />, run: () => changeSortMode(mode.value),
@@ -822,7 +828,7 @@ export function App() {
       refreshing={manualRefreshing}
       onRefresh={() => void refreshPanel()}
       theme={theme}
-      onTheme={cycleTheme}
+      onTheme={toggleTheme}
       density={density}
       onDensity={toggleDensity}
       onPalette={() => setPaletteOpen(true)}

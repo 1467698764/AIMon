@@ -44,7 +44,7 @@ export const prefs = {
   setSort(value: string) { write(keys.sort, value) },
 }
 
-const themeColors: Record<'light' | 'dark', string> = { light: '#eef1f6', dark: '#0b0f17' }
+const themeColors: Record<'light' | 'dark', string> = { light: '#f2f4f9', dark: '#0c0f16' }
 
 export function systemPrefersDark(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -54,6 +54,15 @@ export function systemPrefersDark(): boolean {
 export function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
   if (choice === 'auto') return systemPrefersDark() ? 'dark' : 'light'
   return choice
+}
+
+/**
+ * What the theme button does. From an explicit choice it flips; from 跟随系统 it flips away
+ * from whatever the system currently resolves to. Cycling auto → light → dark instead made
+ * one click in three do nothing visible, which read as a broken button.
+ */
+export function flippedTheme(choice: ThemeChoice): 'light' | 'dark' {
+  return resolveTheme(choice) === 'dark' ? 'light' : 'dark'
 }
 
 export function applyDensity(density: Density): void {
@@ -69,7 +78,11 @@ export function applyTheme(choice: ThemeChoice): 'light' | 'dark' {
   root.dataset.theme = resolved
   root.dataset.themeChoice = choice
   root.style.colorScheme = resolved
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (meta) meta.content = themeColors[resolved]
+  /* Every theme-color meta has to be rewritten, not just the first match: the document
+     ships one per prefers-color-scheme, so writing the dark colour into the light-media
+     tag left the browser chrome painting the wrong theme. */
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    meta.content = themeColors[resolved]
+  }
   return resolved
 }

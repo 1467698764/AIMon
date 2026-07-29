@@ -1,5 +1,5 @@
 import { Activity, Command, LogOut, Moon, RefreshCw, Rows3, Search, Settings as SettingsIcon, Sun, SunMoon } from 'lucide-react'
-import type { Density, ThemeChoice } from '../lib/prefs'
+import { flippedTheme, type Density, type ThemeChoice } from '../lib/prefs'
 import { IconButton } from './primitives'
 
 const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent)
@@ -43,7 +43,11 @@ export function AppHeader({
       <IconButton title="刷新监控数据" className="quiet" disabled={refreshing} onClick={onRefresh}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </IconButton>
-      <IconButton title={`主题：${themeLabels[theme]}（点击切换）`} className="quiet" onClick={onTheme}><ThemeIcon size={17} /></IconButton>
+      <IconButton
+        title={`切换为${themeLabels[flippedTheme(theme)]}主题（当前：${themeLabels[theme]}）`}
+        className="quiet"
+        onClick={onTheme}
+      ><ThemeIcon size={17} /></IconButton>
       <IconButton
         title={density === 'compact' ? '切换为舒适布局' : '切换为紧凑布局'}
         className="quiet"

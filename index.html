@@ -4,9 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafafc" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16181e" />
+    <meta name="theme-color" content="#f2f4f9" />
     <title>AIMon - AI 渠道测活</title>
+    <script>
+      /* Paint the stored theme before the first frame: React only applies it after mount,
+         which flashed a white page at every dark-mode reload. */
+      (function () {
+        try {
+          var stored = localStorage.getItem('aimon-theme')
+          var choice = stored === 'light' || stored === 'dark' ? stored : 'auto'
+          var dark = choice === 'dark' || (choice === 'auto'
+            && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var root = document.documentElement
+          root.dataset.theme = dark ? 'dark' : 'light'
+          root.dataset.themeChoice = choice
+          root.style.colorScheme = dark ? 'dark' : 'light'
+          root.dataset.density = localStorage.getItem('aimon-density') === 'compact' ? 'compact' : 'comfortable'
+          document.querySelector('meta[name="theme-color"]').content = dark ? '#0c0f16' : '#f2f4f9'
+        } catch (error) { /* Preferences are best-effort only. */ }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
