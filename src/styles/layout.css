@@ -1,11 +1,11 @@
+/* The canvas is flat apart from one very faint cool wash at the top: a coloured glow
+   behind the content is decoration a monitoring tool does not need, and the brand-tinted
+   version made the first panel look like it sat in a spotlight. */
 .app-shell {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(1200px 520px at 12% -8%, var(--brand-soft) 0%, transparent 62%),
-    radial-gradient(900px 420px at 96% 0%, var(--canvas-tint) 0%, transparent 58%),
-    var(--canvas);
+  background: linear-gradient(180deg, var(--canvas-tint), var(--canvas) 420px);
 }
 
 /* Header */
@@ -79,18 +79,17 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 33px;
+  height: 32px;
   padding: 0 var(--space-3) 0 var(--space-4);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--control-grad);
+  background: var(--field-face);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: 550;
-  box-shadow: var(--shadow-1);
 }
 .header-search > svg { color: var(--brand); }
-.header-search:hover { background: var(--control-grad-hover); border-color: var(--control-border-hover); color: var(--text); }
+.header-search:hover { background: var(--control-face-hover); border-color: var(--control-border-hover); color: var(--text); }
 
 /* Workspace */
 .workspace {
@@ -155,7 +154,7 @@
   flex-direction: column;
   gap: 3px;
   padding: var(--space-5);
-  background: var(--surface-grad);
+  background: var(--surface);
   overflow: hidden;
 }
 .overview-tile > header {
@@ -251,9 +250,9 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 31px;
+  height: 32px;
   padding: 0 var(--space-3) 0 var(--space-4);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
   background: var(--field-face);
   color: var(--text-muted);
@@ -281,8 +280,7 @@
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
   border: 1px solid var(--brand-border);
-  background: linear-gradient(120deg, var(--brand-soft), var(--surface) 72%);
-  box-shadow: var(--shadow-1);
+  background: var(--brand-soft);
   animation: aimon-fade-up var(--dur) var(--ease-out);
 }
 .job-strip > svg { flex: none; color: var(--brand); }
@@ -345,7 +343,7 @@
 .page-error > button {
   flex: none;
   padding: 3px var(--space-4);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   border: 1px solid currentColor;
   font-size: var(--text-xs);
   font-weight: 650;
@@ -371,7 +369,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: var(--surface-grad);
+  background: var(--surface);
   box-shadow: var(--shadow-1);
   max-height: calc(100dvh - var(--header-height) - var(--workbench-h) - var(--space-9));
   min-width: 0;
@@ -414,7 +412,7 @@
 }
 .site-directory-list > button:hover { background: var(--surface-hover); }
 .site-directory-list > button.active {
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
   border-color: var(--brand-border);
   box-shadow: var(--shadow-1);
 }
@@ -496,7 +494,7 @@
   .site-directory-list .health-breakdown > span:not(.failed) { display: none; }
   /* Two stacked sticky bars would fight over the same offset: below this width the
      horizontal site strip is the navigator, so the toolbar scrolls away with the page. */
-  .workbench { position: static; box-shadow: var(--shadow-1); backdrop-filter: none; background: var(--surface-grad); }
+  .workbench { position: static; box-shadow: var(--shadow-1); backdrop-filter: none; background: var(--surface); }
 }
 
 @media (max-width: 860px) {

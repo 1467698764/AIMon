@@ -28,9 +28,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-6);
-  background:
-    radial-gradient(900px 420px at 20% -10%, var(--brand-soft) 0%, transparent 60%),
-    var(--canvas);
+  background: linear-gradient(180deg, var(--canvas-tint), var(--canvas) 60%);
 }
 .auth-panel {
   display: flex;
@@ -40,7 +38,7 @@
   padding: var(--space-8);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--surface-grad);
+  background: var(--surface);
   box-shadow: var(--shadow-3);
   animation: aimon-pop var(--dur) var(--ease-out);
 }
@@ -51,14 +49,13 @@
 .auth-icon {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   margin-top: var(--space-2);
   border-radius: var(--radius-lg);
   border: 1px solid var(--brand-border);
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft-strong);
   color: var(--brand-strong);
-  box-shadow: var(--shadow-1);
 }
 .auth-panel h1 { font-size: var(--text-xl); }
 .auth-panel > p { color: var(--text-muted); font-size: var(--text-sm); }
@@ -85,7 +82,7 @@
   max-height: calc(100dvh - var(--space-8));
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--surface-grad);
+  background: var(--surface);
   box-shadow: var(--shadow-3);
   animation: aimon-pop var(--dur) var(--ease-out);
   overflow: hidden;
@@ -185,28 +182,28 @@
 .step.active { color: var(--text); }
 .step.active > span { border-color: transparent; background: var(--brand); color: var(--brand-contrast); }
 
-/* Same pill vocabulary as .segmented: two controls that do the same job — pick one of
-   a small set — should not look like two different widgets. */
+/* Same vocabulary as .segmented: two controls that do the same job — pick one of a
+   small set — should not look like two different widgets. */
 .mode-switch {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
   background: var(--field-face);
   width: fit-content;
 }
 .mode-switch > button {
-  min-height: 28px;
+  min-height: 26px;
   padding: 0 var(--space-5);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
 }
 .mode-switch > button:hover:not(.active) { color: var(--text); background: var(--surface-hover); }
-.mode-switch > button.active { background: var(--surface-grad); color: var(--text); box-shadow: var(--shadow-1); }
+.mode-switch > button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 
 .manual-groups { display: flex; flex-direction: column; gap: var(--space-3); }
 .manual-groups > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -232,7 +229,7 @@
   gap: var(--space-6);
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(120deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
 }
 .site-found:focus { outline: none; }
 .site-found > div { display: flex; flex-direction: column; line-height: 1.3; }
@@ -257,8 +254,7 @@
 .selection-row:hover { background: var(--surface-hover); border-color: var(--control-border-hover); }
 .selection-row.selected {
   border-color: var(--brand-border);
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
-  box-shadow: var(--shadow-1);
+  background: var(--brand-soft);
 }
 .selection-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
 .selection-row b { font-size: var(--text-base); }
@@ -295,7 +291,7 @@
 .model-check-grid > label:hover { background: var(--surface-hover); border-color: var(--control-border-hover); }
 .model-check-grid > label.selected {
   border-color: var(--brand-border);
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
 }
 .model-check-grid > label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -308,7 +304,7 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--brand-border);
-  background: linear-gradient(120deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
   color: var(--text-soft);
   font-size: var(--text-sm);
   line-height: 1.55;
@@ -344,7 +340,7 @@
 .prompt-row:hover { background: var(--surface-hover); border-color: var(--control-border-hover); }
 .prompt-row.selected {
   border-color: var(--brand-border);
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
 }
 .prompt-pick { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
 .prompt-pick > strong { font-size: var(--text-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -463,7 +459,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--brand-border);
-  background: linear-gradient(150deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
 }
 .attempt-question > header { display: flex; align-items: center; gap: var(--space-3); }
 .attempt-question > header > svg { flex: none; color: var(--brand); }
@@ -547,7 +543,7 @@
   max-height: 60dvh;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--surface-grad);
+  background: var(--surface);
   box-shadow: var(--shadow-3);
   overflow: hidden;
   animation: aimon-pop var(--dur) var(--ease-out);
@@ -593,7 +589,7 @@
 .palette-item > small { flex: none; font-size: var(--text-xs); color: var(--text-muted); }
 .palette-item:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
 .palette-item.active {
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand-soft-strong));
+  background: var(--brand-soft);
   color: var(--brand-strong);
   box-shadow: inset 0 0 0 1px var(--brand-border);
 }
