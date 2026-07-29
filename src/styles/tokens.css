@@ -51,20 +51,21 @@
   /* Live height of the sticky toolbar, republished by App.tsx whenever its rows wrap. */
   --workbench-h: 92px;
 
-  /* Density-driven layout rhythm. */
-  --panel-pad: 22px;
-  --card-pad: 18px;
-  --section-gap: var(--space-7);
-  --grid-gap: var(--space-5);
+  /* Density-driven layout rhythm. Panel and card padding are deliberately equal: model
+     cells now run edge to edge inside the panel, so their text has to line up with the
+     panel header's. Sections sit close together — the wide grey channels between cards
+     were doing more to break the page apart than the borders were doing to hold it. */
+  --panel-pad: 20px;
+  --card-pad: 20px;
+  --section-gap: var(--space-5);
   --model-card-min: 300px;
   --row-height: 36px;
   --metric-bar: 6px;
 }
 [data-density='compact'] {
   --panel-pad: var(--space-5);
-  --card-pad: var(--space-4);
-  --section-gap: var(--space-5);
-  --grid-gap: var(--space-3);
+  --card-pad: var(--space-5);
+  --section-gap: var(--space-4);
   --model-card-min: 258px;
   --row-height: 32px;
   --metric-bar: 5px;
@@ -79,39 +80,39 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  /* The neutral ramp is genuinely neutral. Every grey here used to carry a blue cast
-     (#f4f7fd, #e5ebf6, #d3dbe8), and a screen full of faintly blue chips reads as "blue
-     buttons" even though no brand colour is involved. Cool ink is fine; cool faces are
-     what made the toolbar look tinted. */
-  --canvas: #eeeff3;
-  --canvas-tint: #e6e8ed;
+  /* The neutral ramp is genuinely neutral, and the canvas is nearly as light as the
+     surfaces on it. A darker grey canvas turned every gap between two panels into a wide
+     grey channel, which is what made the page read as a pile of loose cards. */
+  --canvas: #f3f4f7;
+  --canvas-tint: #edeef3;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #f5f6f9;
-  --surface-hover: #eff0f4;
-  --surface-active: #e5e7ed;
+  --surface-sunken: #f7f8fa;
+  --surface-hover: #f1f2f6;
+  --surface-active: #e7e9ef;
   --overlay-scrim: rgba(20, 22, 28, 0.44);
 
   --border: #d8dae2;
   --border-subtle: #e5e7ed;
   --border-strong: #c1c5cf;
 
-  /* Buttons come in exactly two faces: this white one, and the single near-black
-     primary below. No grey middle tier — three neutral faces in one toolbar (white
-     控件, grey 测活, black 添加站点) read as an unfinished mix rather than a hierarchy.
-     Input-like controls get --field-face, one step down, and that is the whole set. */
-  --control-face: #ffffff;
-  --control-face-hover: #f1f2f6;
-  --control-border: #d8dae2;
-  --control-border-hover: #bfc3cd;
+  /* Buttons come in exactly two faces: this grey one, and the single near-black primary
+     below. The grey is deliberate — a white face on a white panel was marked only by its
+     hairline, so half the controls read as labels until you hovered them. There is still
+     no third neutral tier. Input-like controls get --field-face, which is lighter than the
+     buttons: a field is a hole you type into, a button is a face you press. */
+  --control-face: #e5e7ee;
+  --control-face-hover: #dcdfe8;
+  --control-face-active: #d0d4de;
+  --control-border: #ccd0da;
+  --control-border-hover: #b6bcc8;
   /* Primary is near-black rather than brand blue. One dark slab per screen is easy to
      find, and it leaves blue free to mean "link" and "in progress". */
   --primary-face: #1a1d24;
   --primary-face-hover: #282c35;
   --primary-ink: #ffffff;
-  /* Fields are inset instead of raised, so a control inside a white toolbar reads. */
-  --field-face: #f3f4f8;
-  --field-face-disabled: #e8e9ee;
+  --field-face: #f2f3f7;
+  --field-face-disabled: #e9eaef;
   --glass: color-mix(in srgb, #ffffff 84%, transparent);
 
   --text: #12151d;
@@ -151,7 +152,6 @@
      edge plus a close contact shadow, so a panel reads as a sheet of paper on the
      canvas instead of hovering an inch above it. */
   --shadow-1: 0 1px 2px rgba(18, 21, 29, 0.05);
-  --shadow-2: 0 1px 2px rgba(18, 21, 29, 0.05), 0 6px 14px -10px rgba(18, 21, 29, 0.2);
   --shadow-3: 0 22px 44px -22px rgba(18, 21, 29, 0.3), 0 2px 8px rgba(18, 21, 29, 0.06);
   --shadow-brand: 0 6px 14px -8px rgba(47, 91, 234, 0.5);
   --ring: 0 0 0 3px rgba(47, 91, 234, 0.22);
@@ -174,8 +174,9 @@
   --border-subtle: #22262e;
   --border-strong: #3a3f4a;
 
-  --control-face: #23272f;
-  --control-face-hover: #2d323b;
+  --control-face: #262b34;
+  --control-face-hover: #30353f;
+  --control-face-active: #383e49;
   --control-border: #3b414c;
   --control-border-hover: #525866;
   /* Primary inverts in dark mode — a near-white slab with dark ink. A saturated blue
@@ -222,7 +223,6 @@
   --metric-track: rgba(255, 255, 255, 0.1);
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.36);
-  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 14px -10px rgba(0, 0, 0, 0.6);
   --shadow-3: 0 24px 46px -22px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.5);
   --shadow-brand: 0 6px 14px -8px rgba(74, 113, 242, 0.6);
   --ring: 0 0 0 3px rgba(106, 141, 255, 0.32);

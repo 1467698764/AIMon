@@ -1,9 +1,11 @@
-/* Buttons. Neutral face, hairline border, glyph in the same ink as the label, tight 8px
+/* Buttons. Grey face, hairline border, glyph in the same ink as the label, tight 8px
    corner. No vertical gloss and no hover lift. There are exactly two button faces in the
-   whole app: this white one and the single near-black primary. A grey middle tier used to
-   sit between them, and a toolbar holding white 控件, grey 测活 and one black 添加站点 reads
-   as three unrelated buttons rather than as a hierarchy. Emphasis is the dark slab, and
-   there is only ever one of those in view. Blue means link, focus, and check-in-progress. */
+   whole app: this grey one and the single near-black primary. The grey used to be white,
+   and a white button on a white panel over a grey-white canvas was marked only by its
+   hairline — the control disappeared into whatever it sat on. Emphasis is still the dark
+   slab, and there is only ever one of those in view. A toggle that is *on* inverts the
+   relationship instead of adding a third face: it becomes the raised white chip.
+   Blue means link, focus, and check-in-progress. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -27,7 +29,7 @@
   border-color: var(--control-border-hover);
 }
 .button:hover:not(:disabled) > svg { color: var(--text); }
-.button:active:not(:disabled) { background: var(--surface-active); }
+.button:active:not(:disabled) { background: var(--control-face-active); }
 .button:disabled { opacity: 0.45; }
 
 .button.primary {
@@ -60,14 +62,17 @@
   color: var(--text);
 }
 
-/* A toggle that is currently on: pressed-in ground and full-strength ink. */
+/* A toggle that is currently on: raised white chip against the grey face of its
+   neighbours, same relationship as the segmented control's selected thumb. */
 .button.active {
-  background: var(--surface-active);
+  background: var(--surface);
   border-color: var(--border-strong);
   color: var(--text);
   font-weight: 650;
+  box-shadow: var(--shadow-1);
 }
 .button.active > svg { color: var(--text); }
+.button.active:hover:not(:disabled) { background: var(--surface); border-color: var(--border-strong); }
 
 .button.danger { background: var(--bad); border-color: transparent; color: #fff; }
 .button.danger > svg { color: currentColor; }
@@ -103,9 +108,10 @@
 .icon-button.quiet:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border); }
 .icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad-border); color: var(--bad); }
 .icon-button.active {
-  background: var(--surface-active);
+  background: var(--surface);
   border-color: var(--border-strong);
   color: var(--text);
+  box-shadow: var(--shadow-1);
 }
 
 .text-button {
@@ -142,7 +148,7 @@
   color: var(--text-muted);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.segmented > button:hover:not(:disabled) { color: var(--text); background: var(--surface-hover); }
+.segmented > button:hover:not(:disabled) { color: var(--text); background: var(--surface-active); }
 .segmented > button.active {
   background: var(--surface);
   color: var(--text);

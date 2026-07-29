@@ -16,7 +16,6 @@ import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
 import { CommandPalette, type PaletteAction } from './components/CommandPalette'
 import { JobStrip } from './components/JobStrip'
-import { OverviewTiles } from './components/OverviewTiles'
 import { PromptModal } from './components/PromptModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShortcutHelp } from './components/ShortcutHelp'
@@ -856,12 +855,6 @@ export function App() {
           <button type="button" className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button>
         </div>
       </section>
-      <OverviewTiles
-        dashboard={dashboard}
-        counts={globalStatusCounts}
-        total={globalModels.length}
-        checking={activeModelIds.size}
-      />
       <Workbench
         barRef={workbenchRef}
         query={query}

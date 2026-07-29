@@ -131,58 +131,6 @@
 }
 .page-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 
-/* Overview strip. One bordered surface divided by hairlines rather than eight
-   floating cards: the numbers still read individually, but they stop competing
-   with the panels below for "I am a card" attention. Fixed column counts per
-   breakpoint — auto-fit left a ragged trailing row whenever the tile count and
-   the viewport disagreed. */
-.overview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
-  background: var(--border-subtle);
-  box-shadow: var(--shadow-2);
-  overflow: hidden;
-}
-@media (min-width: 760px) { .overview { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (min-width: 1180px) { .overview { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-.overview-tile {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: var(--space-5);
-  background: var(--surface);
-  overflow: hidden;
-}
-.overview-tile > header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 650;
-  color: var(--text-muted);
-}
-.overview-tile > header svg { flex: none; color: var(--text-faint); }
-.overview-tile > strong { font-size: var(--text-xl); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-.overview-tile > strong em { font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
-.overview-tile > small { font-size: var(--text-xs); color: var(--text-muted); }
-/* The two health tiles carry the verdict, so their value takes the tone too. */
-.overview-tile.tone-good > header svg,
-.overview-tile.tone-good > strong { color: var(--good-ink); }
-.overview-tile.tone-bad > header svg,
-.overview-tile.tone-bad > strong { color: var(--bad-ink); }
-.overview-tile.tone-good { background: color-mix(in srgb, var(--good-soft) 60%, var(--surface)); }
-.overview-tile.tone-bad { background: color-mix(in srgb, var(--bad-soft) 60%, var(--surface)); }
-/* The trailing two tiles report configuration, not health; sunken ground says so. */
-.overview-tile.is-setting { background: var(--surface-sunken); }
-.overview-tile.is-setting > strong { font-size: var(--text-lg); color: var(--text-soft); }
-/* Only once all eight share one row can a vertical rule mean "settings start here". */
-@media (min-width: 1180px) {
-  .overview-tile:not(.is-setting) + .is-setting { box-shadow: inset 1px 0 0 var(--border-strong); }
-}
 /* Workbench: the single sticky toolbar over the site list. Search + status on the
    first line, scope + sort + view controls on the second, one hairline between them.
    Two separate bands here used to read as two competing toolbars. */
@@ -192,11 +140,11 @@
   z-index: var(--z-sticky);
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--glass);
   backdrop-filter: blur(14px) saturate(160%);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-1);
 }
 .workbench-row {
   display: flex;
@@ -357,6 +305,10 @@
 .site-workspace { display: grid; gap: var(--space-5); align-items: start; }
 .site-workspace.has-sites { grid-template-columns: var(--directory-width) minmax(0, 1fr); }
 
+/* The directory is a rail, not a card: a sidebar of site names does not need its own
+   border, ground and shadow next to the panels it navigates — that framing was one of
+   the four nested frames that made the page read as a pile of cards. Its rows carry
+   the structure instead. */
 .site-directory {
   position: sticky;
   /* --workbench-h is published by App.tsx: the directory has to clear the sticky
@@ -365,11 +317,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  padding: 0;
   max-height: calc(100dvh - var(--header-height) - var(--workbench-h) - var(--space-9));
   min-width: 0;
 }
@@ -378,9 +326,13 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: 0 calc(var(--space-3) + 3px);
 }
 .site-directory > header strong { font-size: var(--text-md); }
-.site-directory .search-box { flex: none; max-width: none; height: 32px; }
+/* The filter matches the rows' outer edge, not the rail's: the row list has to keep a
+   few pixels of scroll padding for its focus ring, so a flush filter box would sit
+   3px inside every row below it and read as a misaligned edge. */
+.site-directory .search-box { flex: none; max-width: none; height: 32px; margin-inline: -3px; }
 .site-directory > header .directory-count {
   font-size: var(--text-xs);
   font-weight: 650;
@@ -391,11 +343,13 @@
 .site-directory-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   overflow-y: auto;
   min-height: 0;
-  margin: 0 calc(var(--space-2) * -1);
-  padding: 0 var(--space-2);
+  /* Overflow clips the focus ring, so the list keeps a few pixels of breathing room
+     and pulls them back out with a negative margin to stay flush with the rail. */
+  margin: 0 -3px;
+  padding: 0 3px;
 }
 .site-directory-list > button {
   display: flex;
@@ -409,12 +363,15 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
-.site-directory-list > button:hover { background: var(--surface-hover); }
+.site-directory-list > button:hover { background: var(--surface-sunken); border-color: var(--border-subtle); }
 /* The selected site reads by ground and ink weight, not by a blue wash: this list sits
-   next to the panels it selects, and a tinted row there competes with the health dots. */
+   next to the panels it selects, and a tinted row there competes with the health dots.
+   On the bare rail the chip is the white sheet itself, same relationship as a selected
+   segmented thumb. */
 .site-directory-list > button.active {
-  background: var(--surface-active);
-  border-color: var(--border-strong);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-1);
 }
 .site-directory-list > button.active .directory-label strong { font-weight: 700; }
 .site-directory-list .directory-dot {
@@ -455,12 +412,14 @@
   text-align: center;
 }
 
-.site-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.site-list { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .site-entry { min-width: 0; }
 
 /* Responsive: one breakpoint collapses the directory, one compacts the header. */
 @media (max-width: 1100px) {
   .site-workspace.has-sites { grid-template-columns: minmax(0, 1fr); }
+  /* Below this width the rail becomes a sticky horizontal strip, and a strip that
+     scrolls the page under itself does need a ground of its own to stay readable. */
   .site-directory {
     position: sticky;
     top: calc(var(--header-height) + var(--space-2));
@@ -468,6 +427,11 @@
     max-height: none;
     padding: var(--space-3);
     gap: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--glass);
+    backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: var(--shadow-1);
   }
   .site-directory > header { display: none; }
   /* The horizontal site strip is the mobile navigator; its filter box would
@@ -508,8 +472,6 @@
   .page-head h1 { font-size: var(--text-xl); }
   .page-actions { width: 100%; }
   .page-actions > .button { flex: 1 1 auto; }
-  .overview { gap: 1px; }
-  .overview-tile { padding: var(--space-3) var(--space-4); }
   .search-box { max-width: none; flex-basis: 100%; }
   /* Status segments stay on one line and scroll rather than squeezing each label. */
   .workbench .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }

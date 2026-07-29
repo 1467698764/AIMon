@@ -1,12 +1,14 @@
-/* Site panel. A floating card: generous curve, lit face, soft layered shadow — a flat
-   white rectangle on a near-white canvas reads as a page section, not as an object. */
+/* Site panel. One sheet of paper on the canvas — a tight curve, a hairline edge and a
+   contact shadow. Everything inside it (group headers, model cells) is divided by
+   hairlines rather than by gaps, so the panel reads as one object instead of a tray
+   holding a dozen smaller cards. */
 .site-panel {
   display: flex;
   flex-direction: column;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-1);
   overflow: hidden;
   min-width: 0;
 }
@@ -121,7 +123,7 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) var(--panel-pad);
+  padding: var(--space-3) var(--panel-pad);
   background: transparent;
 }
 .group-leading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -156,19 +158,21 @@
 .group-meta .standard-ratio { color: var(--text); }
 .group-actions { display: flex; align-items: center; gap: var(--space-2); }
 
-/* Model cards. The grid is a sunken well rather than more of the panel's own white:
-   a card only reads as a card if the ground behind it is a different colour, and a
-   single hairline on surface-over-surface was the whole boundary before. */
+/* Model cells, not model cards. Every model used to be a bordered, shadowed card floating
+   on a sunken well inside a bordered panel — three frames deep, with a grey channel around
+   each one. They are now cells of a single table: flat surface, hairline separators drawn
+   by each cell's own inset shadow (so no line is ever doubled), and the status colour
+   riding the top edge. The grid is pulled 1px left so the first column's separator hides
+   under the panel border; the panel clips the 1px that lands past its right edge. */
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--model-card-min), 1fr));
-  gap: var(--grid-gap);
-  padding: var(--panel-pad);
-  background: var(--surface-sunken);
-  border-top: 1px solid var(--border-subtle);
+  margin-left: -1px;
+  background: var(--surface);
 }
-/* Status rides a soft accent along the top edge. The old 3px left bar was a hard
-   slab of colour against the card's curve, and the badge already names the state. */
+/* Status rides a soft accent along the top edge. It stops well short of the far edge:
+   a full-width 3px slab on every cell turned each row of cells into a rainbow rule
+   running the width of the panel. The badge already names the state. */
 .model-card {
   --card-accent: var(--idle-border);
   position: relative;
@@ -176,28 +180,20 @@
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--card-pad);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: var(--shadow-1);
+  box-shadow: inset 1px 0 0 var(--border-subtle), inset 0 1px 0 var(--border-subtle);
   min-width: 0;
-  /* The status stripe below is clipped by this curve instead of carrying its own radius:
-     a radius on a 3px-tall sliver tapers into a floating line above the card. */
-  overflow: hidden;
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: background var(--dur-fast) var(--ease);
 }
 .model-card::before {
   content: '';
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 25%, transparent));
+  height: 2px;
+  background: linear-gradient(90deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 12%, transparent) 62%, transparent);
 }
-.model-card:hover {
-  box-shadow: var(--shadow-2);
-  border-color: var(--border-strong);
-}
+.model-card:hover { background: var(--surface-sunken); }
 .model-card-excellent { --card-accent: var(--good); }
 .model-card-available { --card-accent: var(--warn); }
 .model-card-failed { --card-accent: var(--bad); }
@@ -346,7 +342,7 @@
   /* Reorder left, run-check right, same as the site action row above. */
   .group-actions { justify-content: flex-start; }
   .group-leading .drag-handle { display: none; }
-  .model-grid { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
+  .model-grid { grid-template-columns: minmax(0, 1fr); }
   .site-sync-warning { padding-inline: var(--space-4); flex-wrap: wrap; }
   .site-sync-warning > span { white-space: normal; overflow: visible; }
 }
