@@ -28,17 +28,17 @@ export function SiteContextBar({
     </div>
     <div className="context-actions">
       {focusMode && <>
-        <button type="button" className="button ghost compact" title="上一站" disabled={!onPrev} onClick={onPrev}><ArrowLeft size={15} />上一站</button>
-        <button type="button" className="button ghost compact" title="下一站" disabled={!onNext} onClick={onNext}>下一站<ArrowRight size={15} /></button>
+        <button type="button" className="button compact" title="上一站" disabled={!onPrev} onClick={onPrev}><ArrowLeft size={15} />上一站</button>
+        <button type="button" className="button compact" title="下一站" disabled={!onNext} onClick={onNext}>下一站<ArrowRight size={15} /></button>
         <span className="context-separator" />
       </>}
       <button type="button" className="button compact" onClick={onToggleView}>
         {focusMode ? <><List size={15} />返回全部站点</> : <><PanelLeft size={15} />单站查看</>}
       </button>
-      <button type="button" className="button ghost compact" disabled={busy} onClick={onExpand}>
+      <button type="button" className="button compact" disabled={busy} onClick={onExpand}>
         <ChevronsDown size={16} />{focusMode ? '展开本站' : '展开所有站点'}
       </button>
-      <button type="button" className="button ghost compact" disabled={busy} onClick={onCollapse}>
+      <button type="button" className="button compact" disabled={busy} onClick={onCollapse}>
         <ChevronsUp size={16} />{focusMode ? '收起本站' : '收起所有站点'}
       </button>
     </div>

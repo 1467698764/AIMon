@@ -263,4 +263,49 @@ assert.throws(
 discardDraft(staleDraft.draftId)
 
 deleteSite(autoSiteId)
+
+// A split login/API deployment: only model listing and health traffic move domains.
+const listedUrls: string[] = []
+globalThis.fetch = async (input) => {
+  listedUrls.push(String(input))
+  return new Response(JSON.stringify({
+    object: 'list',
+    data: [{ id: 'gpt-4o-mini', supported_endpoint_types: ['openai'] }],
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+}
+const splitDraft = await prepareManualSite({
+  name: 'Split relay',
+  baseUrl: 'https://login.example',
+  apiBaseUrl: 'https://api.example/v1',
+  rechargeRatio: 1,
+  groups: [{ name: 'default', ratio: 1, apiKey: 'sk-split' }],
+})
+assert.deepEqual(listedUrls, ['https://api.example/v1/models'])
+const splitSiteId = configureSite(splitDraft.draftId, splitDraft.groups.map((group) => ({
+  groupId: group.id,
+  modelIds: group.models.map((model) => model.id),
+})))
+const splitSite = getDashboard().sites.find((site: any) => site.id === splitSiteId)
+assert.equal(splitSite.baseUrl, 'https://login.example')
+assert.equal(splitSite.apiBaseUrl, 'https://api.example')
+assert.equal(getSiteEditor(splitSiteId).apiBaseUrl, 'https://api.example')
+assert.equal(getHealthTargets({ siteId: splitSiteId })[0].api_base_url, 'https://api.example')
+deleteSite(splitSiteId)
+
+// An API domain equal to the login domain is stored as NULL so readers fall back.
+const sameDomainDraft = await prepareManualSite({
+  name: 'Same relay',
+  baseUrl: 'https://same.example',
+  apiBaseUrl: 'https://same.example/v1',
+  rechargeRatio: 1,
+  groups: [{ name: 'default', ratio: 1, apiKey: 'sk-same' }],
+})
+const sameDomainSiteId = configureSite(sameDomainDraft.draftId, sameDomainDraft.groups.map((group) => ({
+  groupId: group.id,
+  modelIds: group.models.map((model) => model.id),
+})))
+assert.equal(getSiteEditor(sameDomainSiteId).apiBaseUrl, '')
+assert.equal(getHealthTargets({ siteId: sameDomainSiteId })[0].api_base_url, null)
+deleteSite(sameDomainSiteId)
+
 console.log('site service integration test passed')

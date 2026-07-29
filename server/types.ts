@@ -58,6 +58,7 @@ export interface HealthAttempt {
   totalMs: number
   httpStatus: number | null
   error?: string
+  reply?: string
 }
 
 export type HealthStatus = 'excellent' | 'available' | 'failed' | 'pending'

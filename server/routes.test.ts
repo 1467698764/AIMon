@@ -128,4 +128,16 @@ describe('health and site lifecycle routes', () => {
     expect(response.body.error).toContain('正在测活')
     expect(mocks.deleteSite).not.toHaveBeenCalled()
   })
+
+  it('passes a custom question to the health engine separately from the scope', async () => {
+    await request(app).post('/api/health/run').send({ groupId: 5, prompt: '  一道推理题  ' }).expect(202)
+
+    expect(mocks.startHealthCheck).toHaveBeenCalledWith({ groupId: 5 }, '  一道推理题  ')
+  })
+
+  it('runs the default probe when no question is supplied', async () => {
+    await request(app).post('/api/health/run').send({}).expect(202)
+
+    expect(mocks.startHealthCheck).toHaveBeenCalledWith({}, undefined)
+  })
 })

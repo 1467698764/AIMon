@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./site-service.js', () => ({
   getHealthTargets: mocks.getHealthTargets,
   refreshHealthMetadata: mocks.refreshHealthMetadata,
+  apiBaseUrlOf: (row: any) => row.api_base_url || row.base_url,
 }))
 vi.mock('./http.js', () => ({
   extractMessage: (body: any) => String(body?.message || body?.error?.message || body?.error || ''),

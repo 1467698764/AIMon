@@ -1,4 +1,6 @@
-/* Buttons */
+/* Buttons. Every button keeps its own face and border so it never dissolves into
+   the panel behind it — the panels, the modal footer and the toolbars all resolve
+   to a surface colour, so "transparent with a hairline" was invisible in half of them. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -7,29 +9,41 @@
   min-height: 34px;
   padding: 0 var(--space-5);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  background: var(--control-face);
   color: var(--text);
   font-size: var(--text-base);
   font-weight: 600;
   white-space: nowrap;
+  box-shadow: var(--shadow-1);
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.button:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border-strong); }
-.button:active:not(:disabled) { transform: translateY(1px); }
-.button:disabled { opacity: 0.5; }
+.button:hover:not(:disabled) { background: var(--control-face-hover); border-color: var(--control-border-hover); }
+.button:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+.button:disabled { opacity: 0.5; box-shadow: none; }
 
 .button.primary {
   background: var(--brand);
-  border-color: transparent;
+  border-color: var(--brand-strong);
   color: var(--brand-contrast);
   box-shadow: var(--shadow-1);
 }
-.button.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: transparent; }
+.button.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 
-.button.ghost { background: transparent; }
-.button.ghost:hover:not(:disabled) { background: var(--surface-hover); }
+/* Ghost is for the retreat action next to a real one (取消 / 返回): still outlined,
+   but quieter ink and no lift, so a pair of buttons reads as one hierarchy. */
+.button.ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-soft);
+  box-shadow: none;
+}
+.button.ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--control-border);
+  color: var(--text);
+}
 
 .button.active {
   background: var(--brand-soft);
@@ -37,11 +51,13 @@
   color: var(--brand-strong);
 }
 
-.button.danger { background: var(--bad); border-color: transparent; color: #fff; }
-.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; }
+.button.danger { background: var(--bad); border-color: var(--bad-ink); color: #fff; }
+.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: var(--bad-ink); }
 
 .button.compact { min-height: 29px; padding: 0 var(--space-4); font-size: var(--text-sm); }
 .button.block { width: 100%; }
+/* Icon-only buttons need a resting outline too, otherwise the only thing marking
+   them as controls is a hover state the user has to find first. */
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -50,14 +66,23 @@
   height: 32px;
   flex: none;
   border-radius: var(--radius-sm);
-  border: 1px solid transparent;
+  border: 1px solid var(--control-border);
+  background: var(--control-face);
   color: var(--text-soft);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease);
 }
-.icon-button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.icon-button:hover:not(:disabled) {
+  background: var(--control-face-hover);
+  border-color: var(--control-border-hover);
+  color: var(--text);
+}
 .icon-button:disabled { opacity: 0.4; }
-.icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad); }
+/* Chrome that sits on an already-busy strip (header, modal title bar) stays quiet
+   until hover; the buttons there are next to a title, not to other buttons. */
+.icon-button.quiet { border-color: transparent; background: transparent; box-shadow: none; }
+.icon-button.quiet:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border); }
+.icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad-border); color: var(--bad); }
 .icon-button.active {
   background: var(--brand-soft);
   border-color: var(--brand-border);
@@ -80,8 +105,8 @@
   gap: 2px;
   padding: 3px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
+  border: 1px solid var(--control-border);
+  background: var(--field-face);
 }
 .segmented > button {
   display: inline-flex;
@@ -194,7 +219,9 @@
   border-radius: 1px;
   background: color-mix(in srgb, var(--text) 30%, transparent);
 }
-/* Form controls */
+/* Form controls. Fields are inset — a white input inside a white panel was marked
+   only by a hairline, which is the same "is that even a control?" problem the buttons
+   had. --field-face is always a step below whatever surface hosts it. */
 label > span,
 .field > span {
   display: block;
@@ -211,26 +238,28 @@ textarea {
   min-height: 34px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  background: var(--field-face);
   color: var(--text);
   font-size: var(--text-base);
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 textarea { padding: var(--space-3) var(--space-4); min-height: 76px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--text-faint); }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--brand);
+  background: var(--surface);
   box-shadow: var(--ring);
 }
-/* In dark mode a sunken fill alone is nearly invisible, so disabled inputs also lose
-   contrast and gain a not-allowed cursor. */
+/* A disabled field has to look disabled without hover or a click: flatter ground, a
+   visible-but-quiet border, dimmed ink and a not-allowed cursor together. */
 input:disabled, select:disabled, textarea:disabled {
-  background: var(--surface-sunken);
-  border-color: var(--border-subtle);
+  background: var(--field-face-disabled);
+  border-color: var(--border);
+  border-style: dashed;
   color: var(--text-faint);
-  opacity: 0.7;
   cursor: not-allowed;
 }
 
@@ -261,7 +290,9 @@ input[type='checkbox'], input[type='radio'] {
   color: var(--text-muted);
   pointer-events: none;
 }
-.input-prefix > input { padding-left: 26px; }
+/* :not() is needed to match the base input rule's specificity — a bare
+   `.input-prefix > input` loses to it, which is why "x" sat on top of the value. */
+.input-prefix > input:not([type='checkbox']) { padding-left: 28px; }
 .search-box {
   position: relative;
   display: flex;
@@ -273,12 +304,13 @@ input[type='checkbox'], input[type='radio'] {
   height: 34px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  background: var(--field-face);
   color: var(--text-muted);
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
-.search-box:focus-within { border-color: var(--brand); box-shadow: var(--ring); outline: none; }
+.search-box:focus-within { border-color: var(--brand); background: var(--surface); box-shadow: var(--ring); outline: none; }
 .search-box > input {
   flex: 1;
   min-width: 0;

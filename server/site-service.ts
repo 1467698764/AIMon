@@ -14,6 +14,7 @@ export interface DiscoverInput {
   id?: number
   name: string
   baseUrl: string
+  apiBaseUrl?: string
   username?: string
   password?: string
   useDefaultCredentials?: boolean
@@ -25,6 +26,21 @@ export interface ManualGroupInput {
   name: string
   ratio: number
   apiKey?: string
+}
+
+/**
+ * Some deployments log in on one domain but serve /v1 traffic from another. An empty
+ * or identical value is stored as NULL so every reader can fall back to base_url.
+ */
+function normalizeApiBaseUrl(raw: string | undefined, loginBaseUrl: string): string | null {
+  const value = (raw || '').trim()
+  if (!value) return null
+  const normalized = normalizeBaseUrl(value)
+  return normalized === loginBaseUrl ? null : normalized
+}
+
+export function apiBaseUrlOf(row: Record<string, any>): string {
+  return row.api_base_url || row.base_url
 }
 
 function one(sql: string, ...params: any[]): Row | undefined {
@@ -87,6 +103,7 @@ function effectiveCredentials(
 
 export async function discoverSite(input: DiscoverInput & { draftId?: number }) {
   const baseUrl = normalizeBaseUrl(input.baseUrl)
+  const apiBaseUrl = normalizeApiBaseUrl(input.apiBaseUrl, baseUrl)
   const existing = input.id
     ? one('SELECT * FROM sites WHERE id = ?', input.id)
     : undefined
@@ -122,11 +139,11 @@ export async function discoverSite(input: DiscoverInput & { draftId?: number }) 
     const stamp = nowIso()
     const result = db.prepare(`
       INSERT INTO site_drafts
-        (site_id, name, base_url, type, username_enc, password_enc, balance, currency, recharge_ratio,
+        (site_id, name, base_url, api_base_url, type, username_enc, password_enc, balance, currency, recharge_ratio,
          connection_mode, site_config_revision, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?)
     `).run(
-      existing?.id || null, input.name.trim(), baseUrl, snapshot.type,
+      existing?.id || null, input.name.trim(), baseUrl, apiBaseUrl, snapshot.type,
       usernameEnc, passwordEnc,
       snapshot.balance, snapshot.currency, rechargeRatio, Number(existing?.config_revision || 0), stamp, stamp,
     )
@@ -169,6 +186,7 @@ export function getSiteEditor(siteId: number) {
     draftId: null,
     name: site.name,
     baseUrl: site.base_url,
+    apiBaseUrl: site.api_base_url || '',
     type: site.type,
     username: decrypt(site.username_enc),
     hasPassword: Boolean(site.password_enc),
@@ -194,6 +212,7 @@ export function getDraftEditor(draftId: number) {
     draftId: draft.id,
     name: draft.name,
     baseUrl: draft.base_url,
+    apiBaseUrl: draft.api_base_url || '',
     type: draft.type,
     username: decrypt(draft.username_enc),
     hasPassword: Boolean(draft.password_enc),
@@ -265,7 +284,7 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
       const key = await adapter.ensureKey(draft.base_url, auth, remoteGroup, existing)
       keyValue = key.value
       keyExternalId = key.externalId
-      models = await adapter.listModels(draft.base_url, keyValue)
+      models = await adapter.listModels(apiBaseUrlOf(draft), keyValue)
       if (!models.length) throw new Error(`分组「${group.name}」没有返回任何可用模型`)
     } catch (error) {
       throw redactError(error, [credentials.password, existing?.value, keyValue])
@@ -303,6 +322,7 @@ export async function prepareGroups(draftId: number, groupIds: number[]) {
 
 export async function prepareManualSite(input: DiscoverInput & { draftId?: number; groups: ManualGroupInput[] }) {
   const baseUrl = normalizeBaseUrl(input.baseUrl)
+  const apiBaseUrl = normalizeApiBaseUrl(input.apiBaseUrl, baseUrl)
   const existing = input.id ? one('SELECT * FROM sites WHERE id = ?', input.id) : undefined
   if (input.id && !existing) throw new Error('站点不存在')
   if (!input.groups.length) throw new Error('至少填写一个分组')
@@ -324,7 +344,7 @@ export async function prepareManualSite(input: DiscoverInput & { draftId?: numbe
     if (!apiKey) throw new Error(`请填写分组「${group.name}」的 API Key`)
     let models: RemoteModel[]
     try {
-      models = await adapter.listModels(baseUrl, apiKey)
+      models = await adapter.listModels(apiBaseUrl || baseUrl, apiKey)
     } catch (error) {
       throw redactError(error, [apiKey])
     }
@@ -342,10 +362,10 @@ export async function prepareManualSite(input: DiscoverInput & { draftId?: numbe
     const stamp = nowIso()
     const result = db.prepare(`
       INSERT INTO site_drafts
-        (site_id, name, base_url, type, balance, currency, recharge_ratio, connection_mode,
+        (site_id, name, base_url, api_base_url, type, balance, currency, recharge_ratio, connection_mode,
          site_config_revision, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 0, 'USD', ?, 'manual', ?, ?, ?)
-    `).run(existing?.id || null, input.name.trim(), baseUrl, existing?.type || 'newapi', rechargeRatio,
+      VALUES (?, ?, ?, ?, ?, 0, 'USD', ?, 'manual', ?, ?, ?)
+    `).run(existing?.id || null, input.name.trim(), baseUrl, apiBaseUrl, existing?.type || 'newapi', rechargeRatio,
       Number(existing?.config_revision || 0), stamp, stamp)
     const id = Number(result.lastInsertRowid)
     for (const item of loaded) {
@@ -406,21 +426,22 @@ export function configureSite(draftId: number, selections: Array<{ groupId: numb
         db.prepare('DELETE FROM site_groups WHERE site_id = ?').run(siteId)
       }
       db.prepare(`
-        UPDATE sites SET name = ?, base_url = ?, type = ?, username_enc = ?, password_enc = ?, balance = ?,
-          currency = ?, recharge_ratio = ?, connection_mode = ?, config_revision = config_revision + 1,
+        UPDATE sites SET name = ?, base_url = ?, api_base_url = ?, type = ?, username_enc = ?, password_enc = ?,
+          balance = ?, currency = ?, recharge_ratio = ?, connection_mode = ?, config_revision = config_revision + 1,
           configured = 1, last_sync_at = ?, last_error = NULL, updated_at = ?
         WHERE id = ?
-      `).run(draft.name, draft.base_url, draft.type, draft.username_enc, draft.password_enc, draft.balance,
-        draft.currency, draft.recharge_ratio, draft.connection_mode || 'auto', nowIso(), nowIso(), siteId)
+      `).run(draft.name, draft.base_url, draft.api_base_url || null, draft.type, draft.username_enc, draft.password_enc,
+        draft.balance, draft.currency, draft.recharge_ratio, draft.connection_mode || 'auto', nowIso(), nowIso(), siteId)
     } else {
       const order = Number(one('SELECT COALESCE(MAX(sort_order), -1) AS value FROM sites')?.value) + 1
       siteId = Number(db.prepare(`
         INSERT INTO sites
-          (name, base_url, type, username_enc, password_enc, balance, currency, recharge_ratio, connection_mode,
-           configured, sort_order, last_sync_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-      `).run(draft.name, draft.base_url, draft.type, draft.username_enc, draft.password_enc, draft.balance,
-        draft.currency, draft.recharge_ratio, draft.connection_mode || 'auto', order, nowIso(), nowIso()).lastInsertRowid)
+          (name, base_url, api_base_url, type, username_enc, password_enc, balance, currency, recharge_ratio,
+           connection_mode, configured, sort_order, last_sync_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      `).run(draft.name, draft.base_url, draft.api_base_url || null, draft.type, draft.username_enc, draft.password_enc,
+        draft.balance, draft.currency, draft.recharge_ratio, draft.connection_mode || 'auto', order, nowIso(), nowIso())
+        .lastInsertRowid)
     }
 
     db.prepare('UPDATE site_groups SET selected = 0, available = 0 WHERE site_id = ?').run(siteId)
@@ -654,7 +675,8 @@ export function getDashboard() {
         SELECT m.id, m.name, m.sort_order AS sortOrder,
           h.checked_at AS checkedAt, h.success_count AS successCount, h.attempt_count AS attemptCount,
           h.avg_ttfb_ms AS avgTtfbMs, h.avg_ttft_ms AS avgTtftMs, h.avg_total_ms AS avgTotalMs,
-          COALESCE(h.status, 'pending') AS status, h.attempts_json AS attemptsJson
+          COALESCE(h.status, 'pending') AS status, h.attempts_json AS attemptsJson,
+          h.custom_prompt AS customPrompt
         FROM models m
         LEFT JOIN health_checks h ON h.id = (
           SELECT id FROM health_checks
@@ -664,7 +686,7 @@ export function getDashboard() {
         WHERE m.group_id = ? AND m.selected = 1
         ORDER BY m.sort_order, m.id
       `, site.config_revision, group.id).map((model) => {
-        const { attemptsJson, ...visible } = model
+        const { attemptsJson, customPrompt, ...visible } = model
         let attempts: unknown[] = []
         if (attemptsJson) {
           try {
@@ -672,7 +694,7 @@ export function getDashboard() {
             if (Array.isArray(parsed)) attempts = parsed
           } catch { /* Keep a damaged historical row from breaking the dashboard. */ }
         }
-        return { ...visible, attempts }
+        return { ...visible, customPrompt: customPrompt || '', attempts }
       })
       return {
         id: group.id,
@@ -689,6 +711,7 @@ export function getDashboard() {
       id: site.id,
       name: site.name,
       baseUrl: site.base_url,
+      apiBaseUrl: site.api_base_url || '',
       type: site.type,
       balance: site.balance,
       currency: site.currency,
@@ -725,7 +748,7 @@ export function getHealthTargets(scope: { siteId?: number; groupId?: number; mod
   if (scope.modelId) { clauses.push('m.id = ?'); params.push(scope.modelId) }
   return all(`
     SELECT m.id AS model_id, m.name AS model_name, m.endpoint_types_json, g.id AS group_id, g.name AS group_name,
-      g.api_key_enc, s.id AS site_id, s.name AS site_name, s.base_url, s.config_revision
+      g.api_key_enc, s.id AS site_id, s.name AS site_name, s.base_url, s.api_base_url, s.config_revision
     FROM models m
     JOIN site_groups g ON g.id = m.group_id
     JOIN sites s ON s.id = g.site_id

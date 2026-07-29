@@ -28,6 +28,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     base_url TEXT NOT NULL UNIQUE,
+    api_base_url TEXT,
     type TEXT CHECK (type IN ('newapi', 'sub2api')),
     username_enc TEXT,
     password_enc TEXT,
@@ -85,7 +86,8 @@ db.exec(`
     avg_total_ms REAL,
     config_revision INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'pending',
-    attempts_json TEXT NOT NULL DEFAULT '[]'
+    attempts_json TEXT NOT NULL DEFAULT '[]',
+    custom_prompt TEXT
   );
 
   CREATE TABLE IF NOT EXISTS site_drafts (
@@ -93,6 +95,7 @@ db.exec(`
     site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     base_url TEXT NOT NULL,
+    api_base_url TEXT,
     type TEXT NOT NULL CHECK (type IN ('newapi', 'sub2api')),
     username_enc TEXT,
     password_enc TEXT,
@@ -162,6 +165,9 @@ for (const statement of [
   `ALTER TABLE site_drafts ADD COLUMN site_config_revision INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE sites ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
   `ALTER TABLE health_checks ADD COLUMN config_revision INTEGER NOT NULL DEFAULT 1`,
+  'ALTER TABLE sites ADD COLUMN api_base_url TEXT',
+  'ALTER TABLE site_drafts ADD COLUMN api_base_url TEXT',
+  'ALTER TABLE health_checks ADD COLUMN custom_prompt TEXT',
 ]) {
   try {
     db.exec(statement)

@@ -34,7 +34,7 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
   const [error, setError] = useState('')
   const [editor, setEditor] = useState<SiteEditor | null>(null)
   const [mode, setMode] = useState<'auto' | 'manual'>('auto')
-  const [form, setForm] = useState({ name: '', baseUrl: '', username: '', password: '', rechargeRatio: 1, useDefault: true })
+  const [form, setForm] = useState({ name: '', baseUrl: '', apiBaseUrl: '', username: '', password: '', rechargeRatio: 1, useDefault: true })
   const [manualGroups, setManualGroups] = useState<ManualGroupForm[]>([emptyManualGroup()])
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set())
   const [prepared, setPrepared] = useState<PreparedGroup[]>([])
@@ -81,7 +81,7 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
     api.site(siteId, controller.signal).then((site) => {
       setEditor(site)
       setMode(site.connectionMode)
-      setForm({ name: site.name, baseUrl: site.baseUrl, username: site.username, password: '', rechargeRatio: site.rechargeRatio, useDefault: !site.username && !site.hasPassword })
+      setForm({ name: site.name, baseUrl: site.baseUrl, apiBaseUrl: site.apiBaseUrl, username: site.username, password: '', rechargeRatio: site.rechargeRatio, useDefault: !site.username && !site.hasPassword })
       setSelectedGroups(new Set(site.groups.filter((group) => group.selected).map((group) => group.id)))
       if (site.connectionMode === 'manual') {
         setManualGroups(site.groups.map((group) => ({
@@ -105,7 +105,7 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
         const result = await api.manual({
           ...(siteId ? { id: siteId } : {}),
           ...(editor?.draftId ? { draftId: editor.draftId } : {}),
-          name: form.name, baseUrl: form.baseUrl, rechargeRatio: form.rechargeRatio,
+          name: form.name, baseUrl: form.baseUrl, apiBaseUrl: form.apiBaseUrl, rechargeRatio: form.rechargeRatio,
           groups: manualGroups.map((group) => ({
             ...(group.id ? { id: group.id } : {}), name: group.name, ratio: group.ratio,
             ...(group.apiKey ? { apiKey: group.apiKey } : {}),
@@ -120,7 +120,7 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
       const site = await api.discover({
         ...(siteId ? { id: siteId } : {}),
         ...(editor?.draftId ? { draftId: editor.draftId } : {}),
-        name: form.name, baseUrl: form.baseUrl, rechargeRatio: form.rechargeRatio,
+        name: form.name, baseUrl: form.baseUrl, apiBaseUrl: form.apiBaseUrl, rechargeRatio: form.rechargeRatio,
         useDefaultCredentials: form.useDefault,
         ...(form.useDefault ? { username: '', password: '' } : { username: form.username, ...(form.password ? { password: form.password } : {}) }),
       }, controller.signal)
@@ -208,14 +208,15 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
         </div>
         <label><span>站点名称</span><input required maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如：主力渠道" /></label>
         <label><span>Base URL（/v1 可省略）</span><input required value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.example.com" /></label>
+        <label><span>API 域名（选填）</span><input value={form.apiBaseUrl} onChange={(e) => setForm({ ...form, apiBaseUrl: e.target.value })} placeholder="留空表示与上方相同" /><small className="form-hint">登录与调用不同域名时填写：模型列表与测活走此域名</small></label>
         <label><span>充值比例</span><div className="input-prefix"><b>x</b><input required type="number" min="0.000001" step="any" value={form.rechargeRatio} onChange={(e) => setForm({ ...form, rechargeRatio: Number(e.target.value) })} /></div></label>
         {mode === 'auto' && <>
           <label className="check-line full"><input type="checkbox" checked={form.useDefault} onChange={(e) => setForm({ ...form, useDefault: e.target.checked })} />使用默认登录凭据</label>
-          <label><span>登录账号</span><input required={!form.useDefault} value={form.username} disabled={form.useDefault} onChange={(e) => setForm({ ...form, username: e.target.value })} autoComplete="username" /></label>
-          <label><span>登录密码</span><input required={!form.useDefault && (!editor?.hasPassword || baseUrlChanged)} value={form.password} disabled={form.useDefault} onChange={(e) => setForm({ ...form, password: e.target.value })} type="password" autoComplete="new-password" placeholder={baseUrlChanged ? 'Base URL 已变化，请重新填写' : editor?.hasPassword ? '已保存，留空不修改' : ''} /></label>
+          <label><span>登录账号</span><input required={!form.useDefault} value={form.username} disabled={form.useDefault} onChange={(e) => setForm({ ...form, username: e.target.value })} autoComplete="username" placeholder={form.useDefault ? '使用默认凭据' : ''} />{form.useDefault && <small className="form-hint">已锁定：取消勾选“使用默认登录凭据”后可填写</small>}</label>
+          <label><span>登录密码</span><input required={!form.useDefault && (!editor?.hasPassword || baseUrlChanged)} value={form.password} disabled={form.useDefault} onChange={(e) => setForm({ ...form, password: e.target.value })} type="password" autoComplete="new-password" placeholder={form.useDefault ? '使用默认凭据' : baseUrlChanged ? 'Base URL 已变化，请重新填写' : editor?.hasPassword ? '已保存，留空不修改' : ''} />{form.useDefault && <small className="form-hint">已锁定：改用本站独立凭据请先取消勾选</small>}</label>
         </>}
         {mode === 'manual' && <section className="manual-groups full">
-          <header><h3>分组与 API Key</h3><button type="button" className="button ghost compact" onClick={() => setManualGroups((current) => [...current, emptyManualGroup()])}><Plus size={15} />添加分组</button></header>
+          <header><h3>分组与 API Key</h3><button type="button" className="button compact" onClick={() => setManualGroups((current) => [...current, emptyManualGroup()])}><Plus size={15} />添加分组</button></header>
           {manualGroups.map((group, index) => <div className="manual-group-row" key={group.clientId}>
             <label><span>分组名称</span><input required maxLength={120} value={group.name} onChange={(e) => setManualGroups((current) => current.map((item) => item.clientId === group.clientId ? { ...item, name: e.target.value } : item))} placeholder={`分组 ${index + 1}`} /></label>
             <label><span>倍率</span><div className="input-prefix"><b>x</b><input required type="number" min="0.000001" step="any" value={group.ratio} onChange={(e) => setManualGroups((current) => current.map((item) => item.clientId === group.clientId ? { ...item, ratio: Number(e.target.value) } : item))} /></div></label>
@@ -267,7 +268,7 @@ export function SiteWizard({ siteId, onClose, onSaved }: {
       </div>
       <footer className="modal-footer">
         <button className="button ghost" onClick={() => setStep(mode === 'manual' ? 1 : 2)}><ArrowLeft size={16} />返回</button>
-        <button className="button ghost" onClick={() => void finish(false)}>保存</button>
+        <button className="button" onClick={() => void finish(false)}>保存</button>
         <button className="button primary" onClick={() => void finish(true)}>保存并测活<Check size={16} /></button>
       </footer>
     </>}

@@ -12,6 +12,7 @@ export interface HealthAttempt {
   totalMs: number
   httpStatus: number | null
   error?: string
+  reply?: string
 }
 
 export interface ModelItem {
@@ -25,6 +26,7 @@ export interface ModelItem {
   avgTtftMs: number | null
   avgTotalMs: number | null
   status: HealthStatus
+  customPrompt: string
   attempts: HealthAttempt[]
 }
 
@@ -43,6 +45,7 @@ export interface SiteItem {
   id: number
   name: string
   baseUrl: string
+  apiBaseUrl: string
   type: 'newapi' | 'sub2api'
   balance: number
   currency: string
@@ -87,6 +90,7 @@ export interface SiteEditor {
   draftId: number | null
   name: string
   baseUrl: string
+  apiBaseUrl: string
   type: 'newapi' | 'sub2api'
   username: string
   hasPassword: boolean
@@ -119,6 +123,7 @@ export interface HealthJob {
   error?: string
   refreshWarning?: string
   deduplicated?: boolean
+  prompt?: string
 }
 
 export interface HealthJobTarget {

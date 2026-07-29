@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ChevronDown, ChevronRight, CircleAlert, ExternalLink, GripVertical, Layers3,
-  LoaderCircle, MoveDown, MoveUp, Pencil, RefreshCw, Server, Trash2,
+  LoaderCircle, MessageSquareText, MoveDown, MoveUp, Pencil, RefreshCw, Server, Trash2,
 } from 'lucide-react'
 import { api } from '../api'
 import type { GroupItem, HealthJobTarget, SiteItem } from '../types'
@@ -14,7 +14,7 @@ export type DragState = { kind: 'site' | 'group'; id: number } | null
 
 export function SitePanel({
   site, sortMode, query, statusFilter, activeModelIds, siteDragEnabled, focusedView, expansionCommand,
-  onEdit, onDelete, deleting, onHealth, isHealthActive, activeTargetFor, onChanged, onError, onNotice,
+  onEdit, onDelete, deleting, onHealth, onCustomHealth, isHealthActive, activeTargetFor, onChanged, onError, onNotice,
   onMoveSite, siteIndex, siteCount, dragging, setDragging,
 }: {
   site: SiteItem
@@ -29,6 +29,7 @@ export function SitePanel({
   onDelete: () => void
   deleting: boolean
   onHealth: (scope: HealthScope) => void
+  onCustomHealth: (scope: HealthScope, label: string, hint: string) => void
   isHealthActive: (scope: HealthScope) => boolean
   activeTargetFor: (modelId: number) => HealthJobTarget | undefined
   onChanged: () => void
@@ -96,7 +97,7 @@ export function SitePanel({
   const normalizedQuery = query.trim().toLowerCase()
   const filtering = Boolean(normalizedQuery || statusFilter !== 'all')
   const reorderable = manualOrder && !filtering
-  const siteMatches = !normalizedQuery || `${site.name} ${site.baseUrl}`.toLowerCase().includes(normalizedQuery)
+  const siteMatches = !normalizedQuery || `${site.name} ${site.baseUrl} ${site.apiBaseUrl}`.toLowerCase().includes(normalizedQuery)
   const groups = sortGroups(localGroups, sortMode).map((group): GroupItem | null => {
     const groupMatches = siteMatches || group.name.toLowerCase().includes(normalizedQuery)
     const models = group.models.filter((model) =>
@@ -218,6 +219,13 @@ export function SitePanel({
           <span className="site-link">
             <a href={site.baseUrl} target="_blank" rel="noreferrer" title={site.baseUrl}>{site.baseUrl}</a>
             <ExternalLink size={12} />
+            {site.apiBaseUrl && <a
+              className="api-origin"
+              href={site.apiBaseUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={`模型列表与测活使用 ${site.apiBaseUrl}`}
+            >API {site.apiBaseUrl.replace(/^https?:\/\//, '')}</a>}
           </span>
         </div>
       </div>
@@ -239,6 +247,11 @@ export function SitePanel({
           disabled={siteChecking}
           onClick={() => onHealth({ siteId: site.id })}
         ><RefreshCw className={siteChecking ? 'spin' : ''} size={15} /><span>{siteChecking ? '测活中' : '测活'}</span></button>
+        <IconButton
+          title="用自定义问题测活此站点"
+          disabled={siteChecking}
+          onClick={() => onCustomHealth({ siteId: site.id }, site.name, `“${site.name}”的所有模型`)}
+        ><MessageSquareText size={16} /></IconButton>
         <IconButton title="编辑站点" disabled={deleting} onClick={onEdit}><Pencil size={16} /></IconButton>
         <IconButton
           title={siteChecking ? '测活完成后可删除站点' : deleting ? '正在删除站点' : '删除站点'}
@@ -303,12 +316,18 @@ export function SitePanel({
                 disabled={groupChecking}
                 onClick={() => onHealth({ groupId: group.id })}
               ><RefreshCw className={groupChecking ? 'spin' : ''} size={15} /><span>{groupChecking ? '测活中' : '测活分组'}</span></button>
+              <IconButton
+                title="用自定义问题测活此分组"
+                disabled={groupChecking}
+                onClick={() => onCustomHealth({ groupId: group.id }, `${site.name} / ${group.name}`, `“${group.name}”分组的所有模型`)}
+              ><MessageSquareText size={15} /></IconButton>
             </div>
           </header>
           {group.expanded && <ModelGrid
             group={group}
             sortMode={sortMode}
             onHealth={onHealth}
+            onCustomHealth={(scope, modelName) => onCustomHealth(scope, `${group.name} / ${modelName}`, `模型“${modelName}”`)}
             activeTargetFor={activeTargetFor}
             onNotice={onNotice}
           />}

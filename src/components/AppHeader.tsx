@@ -40,19 +40,20 @@ export function AppHeader({
         <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd>
       </button>
       <span className="header-divider" />
-      <IconButton title="刷新监控数据" disabled={refreshing} onClick={onRefresh}>
+      <IconButton title="刷新监控数据" className="quiet" disabled={refreshing} onClick={onRefresh}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </IconButton>
-      <IconButton title={`主题：${themeLabels[theme]}（点击切换）`} onClick={onTheme}><ThemeIcon size={17} /></IconButton>
+      <IconButton title={`主题：${themeLabels[theme]}（点击切换）`} className="quiet" onClick={onTheme}><ThemeIcon size={17} /></IconButton>
       <IconButton
         title={density === 'compact' ? '切换为舒适布局' : '切换为紧凑布局'}
+        className="quiet"
         pressed={density === 'compact'}
         onClick={onDensity}
       ><Rows3 size={17} /></IconButton>
-      <IconButton title="键盘快捷键" className="hide-narrow" onClick={onShortcuts}><Command size={17} /></IconButton>
+      <IconButton title="键盘快捷键" className="quiet hide-narrow" onClick={onShortcuts}><Command size={17} /></IconButton>
       <span className="header-divider hide-narrow" />
-      <IconButton title="默认配置" onClick={onSettings}><SettingsIcon size={17} /></IconButton>
-      <IconButton title="退出登录" onClick={onSignOut}><LogOut size={17} /></IconButton>
+      <IconButton title="默认配置" className="quiet" onClick={onSettings}><SettingsIcon size={17} /></IconButton>
+      <IconButton title="退出登录" className="quiet" onClick={onSignOut}><LogOut size={17} /></IconButton>
     </div>
   </header>
 }

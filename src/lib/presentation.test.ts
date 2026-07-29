@@ -19,6 +19,7 @@ function model(partial: Partial<ModelItem> & { id: number; name: string }): Mode
     avgTtftMs: null,
     avgTotalMs: null,
     status: 'available',
+    customPrompt: '',
     attempts: [],
     ...partial,
   }

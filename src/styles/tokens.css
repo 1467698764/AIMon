@@ -89,6 +89,17 @@
   --border-subtle: #e2e8f1;
   --border-strong: #bcc7d8;
 
+  /* Controls carry their own face so a button never resolves to the same colour as
+     the panel behind it. --control-face is always a step away from both --surface
+     and --surface-sunken, which is what makes a button look pressable on either. */
+  --control-face: #f4f7fc;
+  --control-face-hover: #e8eef8;
+  --control-border: #c0cade;
+  --control-border-hover: #a7b5cd;
+  /* Fields are inset instead of raised, so a control inside a white toolbar reads. */
+  --field-face: #f7f9fd;
+  --field-face-disabled: #e6ebf4;
+
   --text: #10192b;
   --text-soft: #414d64;
   --text-muted: #5b6780;
@@ -143,6 +154,13 @@
   --border: #26303f;
   --border-subtle: #1e2734;
   --border-strong: #354153;
+
+  --control-face: #212b3b;
+  --control-face-hover: #2b3749;
+  --control-border: #3a4759;
+  --control-border-hover: #4d5c73;
+  --field-face: #0e1420;
+  --field-face-disabled: #1b2331;
 
   --text: #eef2f9;
   --text-soft: #c3cddd;

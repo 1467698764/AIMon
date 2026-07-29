@@ -2,9 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 import { config } from './config.js'
 import { db, nowIso } from './db.js'
 import { extractMessage, remoteFetch } from './http.js'
-import { hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
+import { extractGeneratedText, extractSseText, hasGeneratedText, sseLinesContainGeneratedText } from './health-protocol.js'
 import { redactSensitiveText } from './privacy.js'
-import { getHealthTargets, refreshHealthMetadata } from './site-service.js'
+import { getHealthTargets, refreshHealthMetadata, apiBaseUrlOf } from './site-service.js'
 import type { HealthAttempt, HealthStatus } from './types.js'
 
 interface HealthScope {
@@ -26,6 +26,7 @@ export interface HealthJob {
   error?: string
   refreshWarning?: string
   deduplicated?: boolean
+  prompt?: string
 }
 
 export interface HealthJobTarget {
@@ -90,11 +91,24 @@ function average(values: Array<number | null>): number | null {
   return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10
 }
 
-function inspectProtocolBody(body: string): { hasText: boolean; error: string } {
+const REPLY_LIMIT = 4_000
+
+/** Custom-prompt answers are shown verbatim in the UI, so keep them bounded. */
+function clipReply(text: string): string | undefined {
+  const trimmed = text.trim()
+  if (!trimmed) return undefined
+  return trimmed.length > REPLY_LIMIT ? `${trimmed.slice(0, REPLY_LIMIT)}…（回复过长，已截断）` : trimmed
+}
+
+function inspectProtocolBody(body: string): { hasText: boolean; error: string; text: string } {
   const trimmed = body.trim()
   try {
     const parsed = JSON.parse(trimmed)
-    return { hasText: hasGeneratedText(parsed), error: parsed?.error ? extractMessage(parsed) : '' }
+    return {
+      hasText: hasGeneratedText(parsed),
+      error: parsed?.error ? extractMessage(parsed) : '',
+      text: extractGeneratedText(parsed),
+    }
   } catch { /* SSE is parsed below. */ }
 
   let hasText = false
@@ -108,7 +122,7 @@ function inspectProtocolBody(body: string): { hasText: boolean; error: string } 
       if (hasGeneratedText(event)) hasText = true
     } catch { /* A truncated diagnostic tail is not treated as generated text. */ }
   }
-  return { hasText, error: protocolError }
+  return { hasText, error: protocolError, text: extractSseText(body) }
 }
 
 async function streamingAttempt(
@@ -185,6 +199,7 @@ async function streamingAttempt(
         || (looksHtml ? '远端返回了 HTML 页面而不是模型响应' : '')
         || responseBody.slice(0, 300)
         || `HTTP ${response.status}：未返回有效文本`,
+      reply: looksHtml ? undefined : clipReply(inspected.text),
       responseBody,
     }
   } catch (error) {
@@ -263,6 +278,7 @@ async function jsonAttempt(
         || (redirected ? '远端请求发生重定向，已拒绝跟随' : '')
         || text.slice(0, 300)
         || `HTTP ${response.status}：未返回有效结果`,
+      reply: clipReply(extractGeneratedText(parsed)),
     }
   } catch (error) {
     const total = performance.now() - started
@@ -281,11 +297,23 @@ async function jsonAttempt(
   }
 }
 
-async function testOnce(baseUrl: string, key: string, model: string, endpointTypes: string[]): Promise<HealthAttempt> {
+/**
+ * A custom prompt only reaches the endpoints that answer in text; embeddings,
+ * image and rerank probes keep their fixed inputs so their verdict stays stable.
+ */
+async function testOnce(
+  baseUrl: string,
+  key: string,
+  model: string,
+  endpointTypes: string[],
+  prompt?: string,
+): Promise<HealthAttempt> {
   const types = new Set(endpointTypes)
+  const question = prompt?.trim() || 'Reply with OK.'
+  const maxTokens = prompt?.trim() ? 2_048 : 16
   if (!types.has('openai') && types.has('openai-response')) {
     const responses = await streamingAttempt(baseUrl, key, '/v1/responses', {
-      model, input: 'Reply with OK.', stream: true, max_output_tokens: 16,
+      model, input: question, stream: true, max_output_tokens: maxTokens,
     })
     const { responseBody: _, ...result } = responses
     return result
@@ -304,7 +332,7 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   }
   if (!types.has('openai') && types.has('anthropic')) {
     return jsonAttempt(baseUrl, key, '/v1/messages', {
-      model, max_tokens: 16, messages: [{ role: 'user', content: 'Reply with OK.' }],
+      model, max_tokens: maxTokens, messages: [{ role: 'user', content: question }],
     }, (body) => Array.isArray(body?.content) && body.content.some((item: any) => typeof item?.text === 'string' && item.text.trim()), {
       'x-api-key': key,
       'anthropic-version': '2023-06-01',
@@ -312,8 +340,8 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   }
   if (!types.has('openai') && types.has('gemini')) {
     return jsonAttempt(baseUrl, key, `/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      contents: [{ role: 'user', parts: [{ text: 'Reply with OK.' }] }],
-      generationConfig: { maxOutputTokens: 16 },
+      contents: [{ role: 'user', parts: [{ text: question }] }],
+      generationConfig: { maxOutputTokens: maxTokens },
     }, (body) => Array.isArray(body?.candidates)
       && body.candidates.some((candidate: any) => candidate?.content?.parts?.some((part: any) => typeof part?.text === 'string' && part.text.trim())))
   }
@@ -329,7 +357,7 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   }
   const chat = await streamingAttempt(baseUrl, key, '/v1/chat/completions', {
     model,
-    messages: [{ role: 'user', content: 'Reply with OK.' }],
+    messages: [{ role: 'user', content: question }],
     stream: true,
   })
   if (chat.ok) {
@@ -342,7 +370,7 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   if (canRetryWithoutStreaming) {
     const nonStreaming = await jsonAttempt(baseUrl, key, '/v1/chat/completions', {
       model,
-      messages: [{ role: 'user', content: 'Reply with OK.' }],
+      messages: [{ role: 'user', content: question }],
       stream: false,
     }, (body) => hasGeneratedText(body))
     if (nonStreaming.ok) return nonStreaming
@@ -356,9 +384,9 @@ async function testOnce(baseUrl: string, key: string, model: string, endpointTyp
   }
   const responses = await streamingAttempt(baseUrl, key, '/v1/responses', {
     model,
-    input: 'Reply with OK.',
+    input: question,
     stream: true,
-    max_output_tokens: 16,
+    max_output_tokens: maxTokens,
   })
   const { responseBody: _, ...result } = responses
   return result
@@ -368,15 +396,18 @@ async function runTarget(
   target: Record<string, any>,
   checkId: number,
   attemptCount: number,
+  prompt?: string,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
   const attempts: HealthAttempt[] = []
+  const baseUrl = apiBaseUrlOf(target)
   for (let index = 0; index < attemptCount; index += 1) {
     onAttempt?.(index + 1)
     let endpointTypes: string[] = []
     try { endpointTypes = JSON.parse(target.endpoint_types_json || '[]') } catch { /* Use compatibility probing. */ }
-    const attempt = await testOnce(target.base_url, target.apiKey, target.model_name, endpointTypes)
+    const attempt = await testOnce(baseUrl, target.apiKey, target.model_name, endpointTypes, prompt)
     if (attempt.error) attempt.error = redactSensitiveText(attempt.error, [target.apiKey])
+    if (attempt.reply) attempt.reply = redactSensitiveText(attempt.reply, [target.apiKey])
     attempts.push(attempt)
   }
   const successes = attempts.filter((attempt) => attempt.ok)
@@ -402,9 +433,10 @@ async function runTarget(
   `).run(target.model_id, target.model_id)
 }
 
-function targetSignature(target: Record<string, any>, attemptCount: number): string {
+function targetSignature(target: Record<string, any>, attemptCount: number, prompt?: string): string {
   const fingerprint = createHash('sha256').update(String(target.apiKey)).digest('hex').slice(0, 16)
-  return `${target.model_id}|${target.config_revision}|${target.base_url}|${fingerprint}|${target.model_name}|${attemptCount}`
+  const question = createHash('sha256').update(prompt?.trim() || '').digest('hex').slice(0, 12)
+  return `${target.model_id}|${target.config_revision}|${apiBaseUrlOf(target)}|${fingerprint}|${target.model_name}|${attemptCount}|${question}`
 }
 
 function copyCheck(fromId: number, toId: number): void {
@@ -412,25 +444,26 @@ function copyCheck(fromId: number, toId: number): void {
   if (!source) throw new Error('并行测活未生成可复用结果')
   db.prepare(`
     UPDATE health_checks SET checked_at = ?, success_count = ?, attempt_count = ?, avg_ttfb_ms = ?,
-      avg_ttft_ms = ?, avg_total_ms = ?, status = ?, attempts_json = ? WHERE id = ?
+      avg_ttft_ms = ?, avg_total_ms = ?, status = ?, attempts_json = ?, custom_prompt = ? WHERE id = ?
   `).run(nowIso(), source.success_count, source.attempt_count, source.avg_ttfb_ms,
-    source.avg_ttft_ms, source.avg_total_ms, source.status, source.attempts_json, toId)
+    source.avg_ttft_ms, source.avg_total_ms, source.status, source.attempts_json, source.custom_prompt ?? null, toId)
 }
 
 function runModelOnce(
   target: Record<string, any>,
   checkId: number,
   attemptCount: number,
+  prompt?: string,
   onStart?: () => void,
   onAttempt?: (attempt: number) => void,
 ): Promise<void> {
-  const signature = targetSignature(target, attemptCount)
+  const signature = targetSignature(target, attemptCount, prompt)
   const existing = activeModels.get(signature)
   if (existing) return existing.promise.then(() => copyCheck(existing.checkId, checkId))
 
   const task = () => runForSite(Number(target.site_id), async () => {
     onStart?.()
-    await runTarget(target, checkId, attemptCount, onAttempt)
+    await runTarget(target, checkId, attemptCount, prompt, onAttempt)
   })
   const promise = task()
     .catch((error) => {
@@ -482,7 +515,8 @@ function updateSiteResults(targets: Array<Record<string, any>>): void {
   }
 }
 
-export function startHealthCheck(scope: HealthScope = {}): HealthJob {
+export function startHealthCheck(scope: HealthScope = {}, prompt?: string): HealthJob {
+  const customPrompt = prompt?.trim() || ''
   const requestedTargets: Array<Record<string, any>> = getHealthTargets(scope)
   if (!requestedTargets.length) throw new Error('当前范围内没有已选择的模型')
   const targets = requestedTargets.filter((target) => !activeTargetJobs.has(targetActivityKey(target)))
@@ -522,18 +556,19 @@ export function startHealthCheck(scope: HealthScope = {}): HealthJob {
       attemptCount,
     })),
     createdAt: nowIso(),
+    prompt: customPrompt || undefined,
     deduplicated: targets.length < requestedTargets.length || undefined,
   }
   jobs.set(job.id, job)
   const checkIds = targets.map((target) => Number(db.prepare(`
-    INSERT INTO health_checks (model_id, checked_at, attempt_count, config_revision, status)
-    VALUES (?, ?, ?, ?, 'pending')
-  `).run(target.model_id, nowIso(), attemptCount, target.config_revision).lastInsertRowid))
+    INSERT INTO health_checks (model_id, checked_at, attempt_count, config_revision, status, custom_prompt)
+    VALUES (?, ?, ?, ?, 'pending', ?)
+  `).run(target.model_id, nowIso(), attemptCount, target.config_revision, customPrompt || null).lastInsertRowid))
   for (const target of targets) activeTargetJobs.set(targetActivityKey(target), job.id)
 
   const promise = new Promise<void>((resolve) => {
     setImmediate(() => {
-      void executeHealthJob(job, scope, targets, checkIds, attemptCount).finally(resolve)
+      void executeHealthJob(job, scope, targets, checkIds, attemptCount, customPrompt).finally(resolve)
     })
   })
   jobPromises.set(job.id, promise)
@@ -546,6 +581,7 @@ async function executeHealthJob(
   targets: Array<Record<string, any>>,
   checkIds: number[],
   attemptCount: number,
+  prompt: string,
 ): Promise<void> {
     job.status = 'running'
     try {
@@ -572,7 +608,7 @@ async function executeHealthJob(
         try {
           await metadataBySite.get(Number(target.site_id))
           job.phase = 'checking'
-          await runModelOnce(target, checkIds[index], attemptCount, () => {
+          await runModelOnce(target, checkIds[index], attemptCount, prompt, () => {
             jobTarget.status = 'running'
             job.current = jobTarget.label
           }, (attempt) => {

@@ -82,13 +82,13 @@
   height: 32px;
   padding: 0 var(--space-3) 0 var(--space-4);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
+  border: 1px solid var(--control-border);
+  background: var(--control-face);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: 550;
 }
-.header-search:hover { background: var(--surface-hover); color: var(--text); }
+.header-search:hover { background: var(--control-face-hover); border-color: var(--control-border-hover); color: var(--text); }
 
 /* Workspace */
 .workspace {
@@ -207,11 +207,11 @@
   height: 34px;
   padding: 0 var(--space-3) 0 var(--space-4);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  background: var(--field-face);
   color: var(--text-muted);
 }
-.sort-select:focus-within { border-color: var(--brand); box-shadow: var(--ring); }
+.sort-select:focus-within { border-color: var(--brand); background: var(--surface); box-shadow: var(--ring); }
 .sort-select > select {
   min-height: 0;
   height: 100%;
@@ -247,6 +247,20 @@
   color: var(--text);
 }
 .job-strip .job-headline span { color: var(--text-muted); font-weight: 550; }
+.job-strip .job-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: var(--text-2xs);
+  font-style: normal;
+  font-weight: 700;
+}
 .job-strip .job-current {
   font-size: var(--text-xs);
   color: var(--text-muted);

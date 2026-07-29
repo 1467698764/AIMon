@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Bot, Clock, Copy, RefreshCw } from 'lucide-react'
+import { Bot, Clock, Copy, MessageSquareText, RefreshCw } from 'lucide-react'
 import type { GroupItem, HealthJobTarget } from '../types'
 import { fmtTime } from '../lib/format'
 import { sortModels, type HealthScope, type SortMode } from '../lib/health'
@@ -7,10 +7,11 @@ import { copyText } from '../lib/view'
 import { AttemptModal } from './AttemptModal'
 import { IconButton, MetricGaugeCells, StatusBadge, SuccessReadout } from './primitives'
 
-export function ModelGrid({ group, sortMode, onHealth, activeTargetFor, onNotice }: {
+export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTargetFor, onNotice }: {
   group: GroupItem
   sortMode: SortMode
   onHealth: (scope: HealthScope) => void
+  onCustomHealth: (scope: HealthScope, modelName: string) => void
   activeTargetFor: (modelId: number) => HealthJobTarget | undefined
   onNotice: (message: string) => void
 }) {
@@ -57,6 +58,11 @@ export function ModelGrid({ group, sortMode, onHealth, activeTargetFor, onNotice
               {failures ? `${failures} 次失败` : `${model.successCount ?? model.attempts.length} 次成功`} · 详情
             </button>}
             <IconButton title="复制模型名称" onClick={() => void copyName(model.name)}><Copy size={14} /></IconButton>
+            <IconButton
+              title="用自定义问题测活此模型"
+              disabled={checking}
+              onClick={() => onCustomHealth({ modelId: model.id }, model.name)}
+            ><MessageSquareText size={14} /></IconButton>
             <IconButton
               title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'}
               disabled={checking}

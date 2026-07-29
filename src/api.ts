@@ -148,7 +148,10 @@ export const api = {
     }),
   reorder: (kind: 'site' | 'group', ids: number[]) =>
     request(`/api/order/${kind}`, { method: 'PUT', body: JSON.stringify({ ids }) }),
-  health: (scope: { siteId?: number; groupId?: number; modelId?: number } = {}) =>
-    request<HealthJob>('/api/health/run', { method: 'POST', body: JSON.stringify(scope) }),
+  health: (scope: { siteId?: number; groupId?: number; modelId?: number } = {}, prompt?: string) =>
+    request<HealthJob>('/api/health/run', {
+      method: 'POST',
+      body: JSON.stringify(prompt?.trim() ? { ...scope, prompt: prompt.trim() } : scope),
+    }),
   jobs: (signal?: AbortSignal) => request<HealthJob[]>('/api/health/jobs', { signal }, undefined, isHealthJobs),
 }

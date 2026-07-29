@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowUpDown, ChevronsDown, ChevronsUp, CircleAlert, Clock, Command, List, LoaderCircle, LogOut,
-  PanelLeft, Plus, RefreshCw, Rows3, Search, Server, Settings as SettingsIcon, SunMoon, Trash2,
+  MessageSquareText, PanelLeft, Plus, RefreshCw, Rows3, Search, Server, Settings as SettingsIcon, SunMoon, Trash2,
 } from 'lucide-react'
 import { api } from './api'
 import type { AuthStatus, Dashboard, HealthJob, HealthJobTarget, SiteItem } from './types'
@@ -18,6 +18,7 @@ import { CommandPalette, type PaletteAction } from './components/CommandPalette'
 import { FilterBar } from './components/FilterBar'
 import { JobStrip } from './components/JobStrip'
 import { OverviewTiles } from './components/OverviewTiles'
+import { PromptModal } from './components/PromptModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { SiteContextBar } from './components/SiteContextBar'
@@ -73,6 +74,7 @@ export function App() {
   const [pendingHealthKeys, setPendingHealthKeys] = useState<Set<string>>(new Set())
   const [deletingSiteIds, setDeletingSiteIds] = useState<Set<number>>(new Set())
   const [deleteCandidate, setDeleteCandidate] = useState<SiteItem | null>(null)
+  const [promptRequest, setPromptRequest] = useState<{ scope: HealthScope; label: string; hint: string } | null>(null)
   const pendingHealthRef = useRef(new Set<string>())
   const trackedJobIdsRef = useRef(new Set<string>())
   const knownJobIdsRef = useRef(new Set<string>())
@@ -351,7 +353,7 @@ export function App() {
     }
   }
 
-  async function health(scope: HealthScope = {}) {
+  async function health(scope: HealthScope = {}, prompt?: string) {
     const key = healthKey(scope)
     if (pendingHealthRef.current.has(key)) return
     pendingHealthRef.current.add(key)
@@ -360,12 +362,12 @@ export function App() {
     jobsEpochRef.current += 1
     if (optimistic) setJobs((current) => [optimistic, ...current])
     try {
-      const job = await api.health(scope)
+      const job = await api.health(scope, prompt)
       jobsEpochRef.current += 1
       trackedJobIdsRef.current.add(job.id)
       setJobs((current) => [job, ...current.filter((item) => item.id !== job.id && item.id !== optimistic?.id)])
       if (job.deduplicated) push('重复模型已在测活，本次未重复排队')
-      else push('测活任务已开始', 'success')
+      else push(job.prompt ? '自定义问题测活已开始' : '测活任务已开始', 'success')
       void loadFresh(true)
     }
     catch (err) {
@@ -376,6 +378,11 @@ export function App() {
       pendingHealthRef.current.delete(key)
       setPendingHealthKeys(new Set(pendingHealthRef.current))
     }
+  }
+  /** Opens the custom-question dialog for one scope; the run itself starts on submit. */
+  function askCustomHealth(scope: HealthScope, label: string, hint: string) {
+    if (isHealthActive(scope)) return
+    setPromptRequest({ scope, label, hint })
   }
   async function remove(site: SiteItem) {
     if (deletingSiteIds.has(site.id) || isHealthActive({ siteId: site.id })) return
@@ -682,7 +689,7 @@ export function App() {
     }
     void setSitesExpanded(dashboard.sites.map((site) => site.id), expanded)
   }
-  const overlayOpen = Boolean(wizard || settingsOpen || shortcutsOpen || deleteCandidate)
+  const overlayOpen = Boolean(wizard || settingsOpen || shortcutsOpen || deleteCandidate || promptRequest)
 
   shortcutRef.current = (event) => {
     if (event.defaultPrevented || !auth?.authenticated || !dashboard || overlayOpen) return
@@ -713,6 +720,7 @@ export function App() {
     const handlers: Record<string, () => void> = {
       r: () => void refreshPanel(),
       a: () => { if (!isHealthActive({})) void health() },
+      p: () => askCustomHealth({}, '所有模型', '全部站点的所有模型'),
       n: () => setWizard({}),
       f: () => siteView === 'focus' ? showAllSites() : focusCurrentSite(),
       e: () => setScopeExpanded(true),
@@ -753,6 +761,10 @@ export function App() {
   const paletteActions: PaletteAction[] = [
     { id: 'refresh', section: '操作', label: '刷新监控数据', hint: 'R', icon: <RefreshCw size={15} />, run: () => void refreshPanel() },
     { id: 'health-all', section: '操作', label: '对所有模型测活', hint: 'A', icon: <Activity size={15} />, run: () => void health() },
+    {
+      id: 'health-all-custom', section: '操作', label: '用自定义问题对所有模型测活', hint: 'P',
+      icon: <MessageSquareText size={15} />, run: () => askCustomHealth({}, '所有模型', '全部站点的所有模型'),
+    },
     { id: 'add-site', section: '操作', label: '添加站点', hint: 'N', icon: <Plus size={15} />, run: () => setWizard({}) },
     { id: 'settings', section: '操作', label: '打开默认配置', icon: <SettingsIcon size={15} />, run: () => setSettingsOpen(true) },
     { id: 'shortcuts', section: '操作', label: '查看键盘快捷键', hint: '?', icon: <Command size={15} />, run: () => setShortcutsOpen(true) },
@@ -809,9 +821,16 @@ export function App() {
           </p>
         </div>
         <div className="page-actions">
-          <button type="button" className="button ghost" disabled={isHealthActive({})} onClick={() => void health()}>
+          <button type="button" className="button" disabled={isHealthActive({})} onClick={() => void health()}>
             <RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活
           </button>
+          <button
+            type="button"
+            className="button"
+            title="用自己的问题对所有模型测活，并保留回复原文"
+            disabled={isHealthActive({})}
+            onClick={() => askCustomHealth({}, '所有模型', '全部站点的所有模型')}
+          ><MessageSquareText size={16} />自定义测活</button>
           <button type="button" className="button primary" onClick={() => setWizard({})}><Plus size={17} />添加站点</button>
         </div>
       </section>
@@ -839,6 +858,7 @@ export function App() {
         detail={refreshingJobs.length ? undefined : `${queuedTargets.length} 个排队中`}
         current={currentTargetLabel}
         warning={refreshWarning}
+        customPrompt={activeJobs.find((job) => job.prompt)?.prompt}
         completed={activeCompleted}
         total={activeTotal}
       />}
@@ -907,6 +927,7 @@ export function App() {
                 onDelete={() => setDeleteCandidate(site)}
                 deleting={deletingSiteIds.has(site.id)}
                 onHealth={(scope) => void health(scope)}
+                onCustomHealth={askCustomHealth}
                 isHealthActive={isHealthActive}
                 activeTargetFor={activeTargetFor}
                 onChanged={() => void loadFresh(true)}
@@ -927,7 +948,7 @@ export function App() {
             <div className="empty-symbol"><Search size={26} /></div>
             <h2>没有匹配的模型</h2>
             <p>调整搜索词或状态筛选。</p>
-            <button type="button" className="button ghost" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button>
+            <button type="button" className="button" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除筛选</button>
           </div>}
         </section>
       </section>
@@ -948,6 +969,16 @@ export function App() {
         }
         if (warning) push(`配置已保存；${warning}`)
         else push(runHealth ? '配置已保存，测活任务已启动' : '配置已保存', 'success')
+      }}
+    />}
+    {promptRequest && <PromptModal
+      scopeLabel={promptRequest.label}
+      targetHint={promptRequest.hint}
+      onClose={() => setPromptRequest(null)}
+      onRun={(prompt) => {
+        const { scope } = promptRequest
+        setPromptRequest(null)
+        void health(scope, prompt)
       }}
     />}
     {settingsOpen && <SettingsModal

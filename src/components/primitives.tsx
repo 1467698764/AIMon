@@ -170,7 +170,7 @@ export function Modal({ title, children, onClose, wide = false, closeDisabled = 
       <section ref={modalRef} tabIndex={-1} className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header className="modal-header">
           <h2 id={titleId} title={title}>{title}</h2>
-          <IconButton title={closeDisabled ? '操作完成后可关闭' : '关闭'} disabled={closeDisabled} onClick={onClose}><X size={18} /></IconButton>
+          <IconButton title={closeDisabled ? '操作完成后可关闭' : '关闭'} className="quiet" disabled={closeDisabled} onClick={onClose}><X size={18} /></IconButton>
         </header>
         {children}
       </section>

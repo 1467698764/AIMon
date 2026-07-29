@@ -49,6 +49,7 @@ router.post('/sites/discover', asyncHandler(async (req, res) => {
     draftId: z.number().int().positive().optional(),
     name: z.string().trim().min(1).max(80),
     baseUrl: z.string().trim().min(1).max(500),
+    apiBaseUrl: z.string().trim().max(500).optional(),
     username: z.string().max(200).optional(),
     password: z.string().max(500).optional(),
     useDefaultCredentials: z.boolean().optional(),
@@ -62,6 +63,7 @@ router.post('/sites/manual', asyncHandler(async (req, res) => {
     draftId: z.number().int().positive().optional(),
     name: z.string().trim().min(1).max(80),
     baseUrl: z.string().trim().min(1).max(500),
+    apiBaseUrl: z.string().trim().max(500).optional(),
     rechargeRatio: z.number().positive().max(1_000_000).optional(),
     groups: z.array(z.object({
       id: z.number().int().positive().optional(),
@@ -148,14 +150,16 @@ router.put('/order/:kind', (req, res) => {
 })
 
 router.post('/health/run', (req, res) => {
-  const scope = z.object({
+  const input = z.object({
     siteId: z.number().int().positive().optional(),
     groupId: z.number().int().positive().optional(),
     modelId: z.number().int().positive().optional(),
+    prompt: z.string().max(8_000).optional(),
   }).refine((value) => [value.siteId, value.groupId, value.modelId].filter(Boolean).length <= 1, {
     message: '一次只能选择站点、分组或模型中的一个测活范围',
   }).parse(req.body || {})
-  res.status(202).json(startHealthCheck(scope))
+  const { prompt, ...scope } = input
+  res.status(202).json(startHealthCheck(scope, prompt))
 })
 router.get('/health/jobs', (_req, res) => res.json(listJobs()))
 

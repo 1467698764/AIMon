@@ -59,6 +59,17 @@
   white-space: nowrap;
 }
 .site-link > a:hover { color: var(--brand); }
+.site-link > a.api-origin {
+  flex: none;
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  max-width: 40%;
+}
 
 .platform {
   flex: none;
@@ -142,12 +153,16 @@
 .group-meta .standard-ratio { color: var(--brand-strong); }
 .group-actions { display: flex; align-items: center; gap: var(--space-2); }
 
-/* Model cards */
+/* Model cards. The grid is a sunken well rather than more of the panel's own white:
+   a card only reads as a card if the ground behind it is a different colour, and a
+   single hairline on surface-over-surface was the whole boundary before. */
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--model-card-min), 1fr));
   gap: var(--grid-gap);
-  padding: 0 var(--panel-pad) var(--panel-pad);
+  padding: var(--panel-pad);
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border-subtle);
 }
 .model-card {
   display: flex;
@@ -158,6 +173,7 @@
   border: 1px solid var(--border);
   border-left: 3px solid var(--idle-border);
   background: var(--surface);
+  box-shadow: var(--shadow-1);
   min-width: 0;
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease);
@@ -233,6 +249,9 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
+/* Three icon controls share this row with a timestamp and the detail link, so they
+   run one step smaller than the standard icon button. */
+.model-card-footer .icon-button { width: 28px; height: 28px; }
 .model-checked {
   display: inline-flex;
   align-items: center;
@@ -294,7 +313,7 @@
   .group-actions { grid-column: 2; }
   .group-meta { grid-column: 1 / -1; gap: var(--space-4); }
   .group-leading .drag-handle { display: none; }
-  .model-grid { grid-template-columns: minmax(0, 1fr); padding: 0 var(--space-4) var(--space-4); }
+  .model-grid { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
   .site-sync-warning { padding-inline: var(--space-4); flex-wrap: wrap; }
   .site-sync-warning > span { white-space: normal; overflow: visible; }
   /* The site action row is full-width here, so it keeps its verb; the group header

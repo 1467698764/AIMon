@@ -5,6 +5,7 @@ export const shortcuts: ReadonlyArray<{ keys: string[]; label: string; group: st
   { group: '全局操作', keys: ['/'], label: '聚焦搜索框' },
   { group: '全局操作', keys: ['R'], label: '刷新监控数据' },
   { group: '全局操作', keys: ['A'], label: '对所有模型测活' },
+  { group: '全局操作', keys: ['P'], label: '用自定义问题对所有模型测活' },
   { group: '全局操作', keys: ['N'], label: '添加站点' },
   { group: '浏览与导航', keys: ['F'], label: '在单站查看与全部站点之间切换' },
   { group: '浏览与导航', keys: ['E'], label: '展开当前范围的全部层级' },
