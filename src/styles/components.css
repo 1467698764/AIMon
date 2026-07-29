@@ -1,16 +1,17 @@
-/* Buttons. Every button keeps its own face and border so it never dissolves into
-   the panel behind it — the panels, the modal footer and the toolbars all resolve
-   to a surface colour, so "transparent with a hairline" was invisible in half of them. */
+/* Buttons. Every button keeps a lit face, a soft border and a coloured glyph: a flat
+   grey chip with a grey icon reads as disabled, which is exactly what the whole action
+   set looked like before. Hierarchy is face weight, not presence of colour —
+   primary (filled) > accent (tinted, every 测活 entry) > default > ghost. */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 var(--space-5);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--control-face);
+  background: var(--control-grad);
   color: var(--text);
   font-size: var(--text-base);
   font-weight: 600;
@@ -19,17 +20,33 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.button:hover:not(:disabled) { background: var(--control-face-hover); border-color: var(--control-border-hover); }
-.button:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
-.button:disabled { opacity: 0.5; box-shadow: none; }
+.button > svg { flex: none; color: var(--brand); }
+.button:hover:not(:disabled) {
+  background: var(--control-grad-hover);
+  border-color: var(--control-border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+.button:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-1); }
+.button:disabled { opacity: 0.45; box-shadow: none; }
 
 .button.primary {
-  background: var(--brand);
-  border-color: var(--brand-strong);
+  background: var(--primary-grad);
+  border-color: transparent;
   color: var(--brand-contrast);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-brand);
 }
-.button.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
+.button.primary > svg { color: currentColor; }
+.button.primary:hover:not(:disabled) { background: var(--primary-grad-hover); border-color: transparent; }
+
+/* Accent marks the action a monitoring tool exists for. Tinted face, brand ink. */
+.button.accent {
+  background: var(--accent-grad);
+  border-color: var(--brand-border);
+  color: var(--brand-strong);
+}
+.button.accent > svg { color: var(--brand); }
+.button.accent:hover:not(:disabled) { background: var(--accent-grad-hover); border-color: var(--brand); }
 
 /* Ghost is for the retreat action next to a real one (取消 / 返回): still outlined,
    but quieter ink and no lift, so a pair of buttons reads as one hierarchy. */
@@ -39,53 +56,59 @@
   color: var(--text-soft);
   box-shadow: none;
 }
+.button.ghost > svg { color: var(--text-faint); }
 .button.ghost:hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--control-border);
   color: var(--text);
+  transform: none;
+  box-shadow: none;
 }
 
 .button.active {
-  background: var(--brand-soft);
-  border-color: var(--brand-border);
+  background: var(--accent-grad-hover);
+  border-color: var(--brand);
   color: var(--brand-strong);
 }
 
-.button.danger { background: var(--bad); border-color: var(--bad-ink); color: #fff; }
-.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: var(--bad-ink); }
+.button.danger { background: var(--bad); border-color: transparent; color: #fff; }
+.button.danger > svg { color: currentColor; }
+.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; }
 
-.button.compact { min-height: 29px; padding: 0 var(--space-4); font-size: var(--text-sm); }
+.button.compact { min-height: 31px; padding: 0 var(--space-4); font-size: var(--text-sm); }
 .button.block { width: 100%; }
-/* Icon-only buttons need a resting outline too, otherwise the only thing marking
-   them as controls is a hover state the user has to find first. */
+/* Icon-only buttons need a resting face too, otherwise the only thing marking them
+   as controls is a hover state the user has to find first. */
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 33px;
+  height: 33px;
   flex: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--control-face);
+  background: var(--control-grad);
   color: var(--text-soft);
+  box-shadow: var(--shadow-1);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .icon-button:hover:not(:disabled) {
-  background: var(--control-face-hover);
-  border-color: var(--control-border-hover);
-  color: var(--text);
+  background: var(--accent-grad);
+  border-color: var(--brand-border);
+  color: var(--brand);
+  box-shadow: var(--shadow-2);
 }
-.icon-button:disabled { opacity: 0.4; }
+.icon-button:disabled { opacity: 0.4; box-shadow: none; }
 /* Chrome that sits on an already-busy strip (header, modal title bar) stays quiet
    until hover; the buttons there are next to a title, not to other buttons. */
 .icon-button.quiet { border-color: transparent; background: transparent; box-shadow: none; }
-.icon-button.quiet:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border); }
+.icon-button.quiet:hover:not(:disabled) { background: var(--brand-soft); border-color: var(--brand-border); box-shadow: none; }
 .icon-button.danger:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad-border); color: var(--bad); }
 .icon-button.active {
-  background: var(--brand-soft);
-  border-color: var(--brand-border);
+  background: var(--accent-grad-hover);
+  border-color: var(--brand);
   color: var(--brand-strong);
 }
 
@@ -98,13 +121,15 @@
 }
 .text-button:hover { background: var(--brand-soft); }
 
-/* Segmented control shared by status filters, mode switches and view toggles */
+/* Segmented control shared by status filters, mode switches and view toggles.
+   The tray is a pill so it reads as one control, and the selected thumb is a lifted
+   white chip rather than a tint — that is what makes the choice legible at a glance. */
 .segmented {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--control-border);
   background: var(--field-face);
 }
@@ -112,17 +137,18 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 26px;
+  min-height: 27px;
   padding: 0 var(--space-4);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 .segmented > button:hover:not(:disabled) { color: var(--text); background: var(--surface-hover); }
 .segmented > button.active {
-  background: var(--surface);
+  background: var(--surface-grad);
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
@@ -235,9 +261,9 @@ input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 var(--space-4);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
   background: var(--field-face);
   color: var(--text);
@@ -293,6 +319,7 @@ input[type='checkbox'], input[type='radio'] {
 /* :not() is needed to match the base input rule's specificity — a bare
    `.input-prefix > input` loses to it, which is why "x" sat on top of the value. */
 .input-prefix > input:not([type='checkbox']) { padding-left: 28px; }
+/* The search field is a pill: it is the one control the user reaches for by shape. */
 .search-box {
   position: relative;
   display: flex;
@@ -301,15 +328,16 @@ input[type='checkbox'], input[type='radio'] {
   flex: 1 1 240px;
   min-width: 0;
   max-width: 420px;
-  height: 34px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-sm);
+  height: 36px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--control-border);
   background: var(--field-face);
   color: var(--text-muted);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
+.search-box > svg { flex: none; color: var(--brand); }
 .search-box:focus-within { border-color: var(--brand); background: var(--surface); box-shadow: var(--ring); outline: none; }
 .search-box > input {
   flex: 1;
@@ -336,8 +364,8 @@ input[type='checkbox'], input[type='radio'] {
 .search-box.pending::after {
   content: '';
   position: absolute;
-  inset-inline: var(--space-4);
-  bottom: -1px;
+  inset-inline: var(--space-6);
+  bottom: 3px;
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--brand), transparent);

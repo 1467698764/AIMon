@@ -15,17 +15,16 @@ import { resolveSiteView } from './lib/view'
 import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
 import { CommandPalette, type PaletteAction } from './components/CommandPalette'
-import { FilterBar } from './components/FilterBar'
 import { JobStrip } from './components/JobStrip'
 import { OverviewTiles } from './components/OverviewTiles'
 import { PromptModal } from './components/PromptModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShortcutHelp } from './components/ShortcutHelp'
-import { SiteContextBar } from './components/SiteContextBar'
 import { SiteDirectory } from './components/SiteDirectory'
 import { SitePanel, type DragState } from './components/SitePanel'
 import { SiteWizard } from './components/SiteWizard'
 import { ToastStack, useToasts, type ToastTone } from './components/Toasts'
+import { Workbench } from './components/Workbench'
 import { LoadingScreen, Modal } from './components/primitives'
 
 const themeOrder: readonly ThemeChoice[] = ['auto', 'light', 'dark']
@@ -91,6 +90,7 @@ export function App() {
   const refreshCancellationEpochRef = useRef(0)
   const siteReorderRef = useRef(false)
   const siteWorkspaceRef = useRef<HTMLElement | null>(null)
+  const workbenchRef = useRef<HTMLElement | null>(null)
   const directoryListRef = useRef<HTMLElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const siteScrollLockRef = useRef<{ siteId: number; until: number } | null>(null)
@@ -537,6 +537,23 @@ export function App() {
       list.scrollTo({ top, behavior: 'smooth' })
     }
   }, [focusedSite?.id, siteView, normalizedDirectoryQuery])
+  // The sticky site directory and every scroll-to-site jump have to clear the sticky
+  // toolbar, whose height changes as its rows wrap. Publish the measured height once
+  // instead of hard-coding an offset that goes stale on every layout tweak.
+  useEffect(() => {
+    const bar = workbenchRef.current
+    if (!bar || typeof ResizeObserver === 'undefined') return
+    const publish = () => {
+      document.documentElement.style.setProperty('--workbench-h', `${Math.round(bar.offsetHeight)}px`)
+    }
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(bar)
+    return () => {
+      observer.disconnect()
+      document.documentElement.style.removeProperty('--workbench-h')
+    }
+  }, [auth?.authenticated, dashboard != null])
   function changeSiteView(mode: SiteViewMode) {
     setSiteViewPreference(mode)
     prefs.setSiteView(mode)
@@ -589,7 +606,12 @@ export function App() {
   }
   /** Height of everything sticky above a site panel, so scrolling lands cleanly. */
   function siteScrollOffset(): number {
-    if (!window.matchMedia('(max-width: 1100px)').matches) return 128
+    if (!window.matchMedia('(max-width: 1100px)').matches) {
+      const bar = workbenchRef.current
+      if (!bar) return 128
+      const stickyTop = Number.parseFloat(getComputedStyle(bar).top)
+      return (Number.isFinite(stickyTop) ? stickyTop : 66) + bar.offsetHeight + 10
+    }
     const directory = siteWorkspaceRef.current?.querySelector<HTMLElement>('.site-directory')
     if (!directory) return 72
     const stickyTop = Number.parseFloat(getComputedStyle(directory).top)
@@ -821,12 +843,12 @@ export function App() {
           </p>
         </div>
         <div className="page-actions">
-          <button type="button" className="button" disabled={isHealthActive({})} onClick={() => void health()}>
+          <button type="button" className="button accent" disabled={isHealthActive({})} onClick={() => void health()}>
             <RefreshCw className={isHealthActive({}) ? 'spin' : ''} size={16} />所有模型测活
           </button>
           <button
             type="button"
-            className="button"
+            className="button accent"
             title="用自己的问题对所有模型测活，并保留回复原文"
             disabled={isHealthActive({})}
             onClick={() => askCustomHealth({}, '所有模型', '全部站点的所有模型')}
@@ -840,7 +862,8 @@ export function App() {
         total={globalModels.length}
         checking={activeModelIds.size}
       />
-      <FilterBar
+      <Workbench
+        barRef={workbenchRef}
         query={query}
         onQuery={setQuery}
         pending={searchPending}
@@ -850,7 +873,19 @@ export function App() {
         counts={statusFilterCounts}
         sortMode={sortMode}
         onSortMode={changeSortMode}
-        result={filtering ? `显示 ${visibleSites.length} / ${sites.length} 个站点` : ''}
+        result={sites.length ? `显示 ${visibleSites.length} / ${sites.length} 个站点` : ''}
+        focusMode={siteView === 'focus'}
+        siteName={focusedSite?.name || ''}
+        index={focusedVisibleIndex}
+        count={visibleSites.length}
+        busy={bulkAllToggling}
+        onPrev={focusedVisibleIndex > 0 ? () => selectFocusedSite(visibleSites[focusedVisibleIndex - 1].id) : undefined}
+        onNext={focusedVisibleIndex >= 0 && focusedVisibleIndex < visibleSites.length - 1
+          ? () => selectFocusedSite(visibleSites[focusedVisibleIndex + 1].id)
+          : undefined}
+        onToggleView={() => siteView === 'focus' ? showAllSites() : focusCurrentSite()}
+        onExpand={() => setScopeExpanded(true)}
+        onCollapse={() => setScopeExpanded(false)}
       />
       {activeJobs.length > 0 && <JobStrip
         label={activeLabel}
@@ -888,20 +923,6 @@ export function App() {
           focusMode={siteView === 'focus'}
         />}
         <section className="site-list">
-          {visibleSites.length > 0 && <SiteContextBar
-            focusMode={siteView === 'focus'}
-            siteName={focusedSite?.name || ''}
-            index={focusedVisibleIndex}
-            count={visibleSites.length}
-            busy={bulkAllToggling}
-            onPrev={focusedVisibleIndex > 0 ? () => selectFocusedSite(visibleSites[focusedVisibleIndex - 1].id) : undefined}
-            onNext={focusedVisibleIndex >= 0 && focusedVisibleIndex < visibleSites.length - 1
-              ? () => selectFocusedSite(visibleSites[focusedVisibleIndex + 1].id)
-              : undefined}
-            onToggleView={() => siteView === 'focus' ? showAllSites() : focusCurrentSite()}
-            onExpand={() => setScopeExpanded(true)}
-            onCollapse={() => setScopeExpanded(false)}
-          />}
           {displayedSites.map((site) => {
             const index = sites.findIndex((item) => item.id === site.id)
             return <div

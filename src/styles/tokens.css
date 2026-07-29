@@ -13,14 +13,15 @@
   --space-8: 32px;
   --space-9: 40px;
 
-  /* Radius is layered, not uniform: each step is the one inside it plus ~2px, so a
-     card inside a panel inside a modal never fights its container's curve. Pill is
-     reserved for live status and for bars/dots — never for plain labels. */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 11px;
-  --radius-xl: 14px;
+  /* Radius is layered, not uniform: each step is the one inside it plus ~4px, so a
+     card inside a panel inside a modal never fights its container's curve. The scale
+     is deliberately soft — controls are pill or near-pill, surfaces are generously
+     rounded, and only tiny inline tags stay tight. */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
   --radius-pill: 999px;
 
   /* Nothing below --text-xs may carry information the user has to read. */
@@ -47,6 +48,8 @@
   --shell-max: 1560px;
   --header-height: 58px;
   --directory-width: 268px;
+  /* Live height of the sticky toolbar, republished by App.tsx whenever its rows wrap. */
+  --workbench-h: 92px;
 
   /* Density-driven layout rhythm. */
   --panel-pad: 22px;
@@ -90,15 +93,21 @@
   --border-strong: #bcc7d8;
 
   /* Controls carry their own face so a button never resolves to the same colour as
-     the panel behind it. --control-face is always a step away from both --surface
-     and --surface-sunken, which is what makes a button look pressable on either. */
-  --control-face: #f4f7fc;
-  --control-face-hover: #e8eef8;
-  --control-border: #c0cade;
-  --control-border-hover: #a7b5cd;
+     the panel behind it, and the face is a soft vertical gradient: a flat grey chip
+     reads as disabled, a lit one reads as pressable. */
+  --control-grad: linear-gradient(180deg, #ffffff, #f3f6fc);
+  --control-grad-hover: linear-gradient(180deg, #ffffff, #e9f0fe);
+  --control-border: #ccd6e6;
+  --control-border-hover: #a9bdea;
+  /* Accent controls (every 测活 entry) sit between neutral and primary. */
+  --accent-grad: linear-gradient(180deg, #f4f8ff, #e3ecff);
+  --accent-grad-hover: linear-gradient(180deg, #eaf1ff, #d5e2ff);
+  --primary-grad: linear-gradient(180deg, #4a71f2, #2647cf);
+  --primary-grad-hover: linear-gradient(180deg, #3a62ee, #1c3bbb);
   /* Fields are inset instead of raised, so a control inside a white toolbar reads. */
-  --field-face: #f7f9fd;
+  --field-face: #f4f7fd;
   --field-face-disabled: #e6ebf4;
+  --glass: color-mix(in srgb, #ffffff 84%, transparent);
 
   --text: #10192b;
   --text-soft: #414d64;
@@ -133,11 +142,15 @@
   --idle-border: #dee4ee;
   --metric-track: rgba(16, 25, 43, 0.09);
 
-  --shadow-1: 0 1px 2px rgba(16, 25, 43, 0.05);
-  --shadow-2: 0 6px 18px -8px rgba(16, 25, 43, 0.18), 0 1px 3px rgba(16, 25, 43, 0.05);
-  --shadow-3: 0 22px 48px -18px rgba(16, 25, 43, 0.32), 0 2px 8px rgba(16, 25, 43, 0.08);
+  --shadow-1: 0 1px 2px rgba(16, 25, 43, 0.05), 0 1px 1px rgba(16, 25, 43, 0.03);
+  --shadow-2: 0 10px 28px -14px rgba(16, 25, 43, 0.24), 0 2px 6px rgba(16, 25, 43, 0.05);
+  --shadow-3: 0 34px 68px -26px rgba(16, 25, 43, 0.34), 0 4px 14px rgba(16, 25, 43, 0.08);
+  --shadow-brand: 0 10px 22px -12px rgba(47, 91, 234, 0.55), 0 1px 2px rgba(16, 25, 43, 0.12);
   --ring: 0 0 0 3px rgba(47, 91, 234, 0.28);
   --grid-line: rgba(16, 25, 43, 0.05);
+  /* Surfaces are lit from the top so a large panel is not one flat rectangle. */
+  --surface-grad: linear-gradient(180deg, #ffffff, #fbfcfe);
+  --panel-head-grad: linear-gradient(180deg, #f7f9fe, #ffffff 82%);
 }
 [data-theme='dark'] {
   color-scheme: dark;
@@ -155,12 +168,17 @@
   --border-subtle: #1e2734;
   --border-strong: #354153;
 
-  --control-face: #212b3b;
-  --control-face-hover: #2b3749;
+  --control-grad: linear-gradient(180deg, #263143, #1d2635);
+  --control-grad-hover: linear-gradient(180deg, #2f3c52, #242f41);
   --control-border: #3a4759;
-  --control-border-hover: #4d5c73;
+  --control-border-hover: #55688a;
+  --accent-grad: linear-gradient(180deg, #23314f, #1a2440);
+  --accent-grad-hover: linear-gradient(180deg, #2b3c5f, #212c4d);
+  --primary-grad: linear-gradient(180deg, #5f83ff, #3f61e8);
+  --primary-grad-hover: linear-gradient(180deg, #7593ff, #4c6df0);
   --field-face: #0e1420;
   --field-face-disabled: #1b2331;
+  --glass: color-mix(in srgb, #151b27 86%, transparent);
 
   --text: #eef2f9;
   --text-soft: #c3cddd;
@@ -196,9 +214,12 @@
   --metric-track: rgba(255, 255, 255, 0.1);
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 8px 22px -10px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-3: 0 26px 54px -20px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 12px 26px -12px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 36px 66px -24px rgba(0, 0, 0, 0.82), 0 3px 12px rgba(0, 0, 0, 0.55);
+  --shadow-brand: 0 12px 26px -14px rgba(74, 113, 242, 0.75), 0 1px 2px rgba(0, 0, 0, 0.5);
   --ring: 0 0 0 3px rgba(106, 141, 255, 0.35);
   --grid-line: rgba(255, 255, 255, 0.05);
+  --surface-grad: linear-gradient(180deg, #19212f, #141a26);
+  --panel-head-grad: linear-gradient(180deg, #1c2432, #151b27 82%);
 }
 
