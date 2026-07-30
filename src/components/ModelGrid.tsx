@@ -49,9 +49,9 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
             <StatusBadge model={model} activeTarget={activeTarget} score />
           </header>
           <div className="model-metrics">
-            <MetricStat metric="ttfb" label="首字" hint="平均首字（TTFB，首个响应字节）" value={model.avgTtfbMs} />
-            <MetricStat metric="ttft" label="TTFT" hint="平均 TTFT（首个非空文本 token）" value={model.avgTtftMs} />
-            <MetricStat metric="total" label="耗时" hint="平均耗时（读取完成）" value={model.avgTotalMs} />
+            <MetricStat metric="ttfb" label="平均首字" hint="平均首字（TTFB，首个响应字节）" value={model.avgTtfbMs} />
+            <MetricStat metric="ttft" label="平均 TTFT" hint="平均 TTFT（首个非空文本 token）" value={model.avgTtftMs} />
+            <MetricStat metric="total" label="平均耗时" hint="平均耗时（读取完成）" value={model.avgTotalMs} />
           </div>
           <footer className="model-card-footer">
             <span className="model-checked" title={`最近测活 ${fmtTime(model.checkedAt)}`}>

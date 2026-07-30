@@ -56,25 +56,27 @@
   /* Density-driven layout rhythm. --panel-pad is the vertical rhythm of a site's title
      band; the panel's own gutters are one step up from it (--space-5). */
   --panel-pad: var(--space-4);
-  /* The card holds four short rows; a 16px inset around them made a 227px-tall card out of
-     ~150px of content. The inset is now one step under the gap between cards. */
-  --card-pad: var(--space-4);
+  /* The card is the object this page is about, so it is the one surface that gets a
+     comfortable inset rather than the tightest one that still works. */
+  --card-pad: var(--space-5);
   --section-gap: var(--space-5);
-  /* The card is meant to read as a near-square tile: with the three readings stacked as
-     rows instead of columns it is ~160px tall, so a 248px column lands around 1.55:1. The
-     footer may wrap at the tightest widths — that is what `flex-wrap` on it is for, because
-     the one thing a monitoring card must never clip is the timestamp. */
-  --model-card-min: 248px;
+  /* The card is meant to read as a near-square tile. Each reading is two lines now — label
+     and value above a full-width gauge — which is what buys the height: at a 264px column
+     the card lands around 1.2:1 instead of the 1.5:1 it had when the gauges were squeezed
+     into a third column. The footer may wrap at the tightest widths — that is what
+     `flex-wrap` on it is for, because the one thing a monitoring card must never clip is
+     the timestamp. */
+  --model-card-min: 264px;
   --row-height: 34px;
-  --metric-bar: 6px;
+  --metric-bar: 8px;
 }
 [data-density='compact'] {
   --panel-pad: var(--space-3);
-  --card-pad: var(--space-3);
+  --card-pad: var(--space-4);
   --section-gap: var(--space-4);
-  --model-card-min: 220px;
+  --model-card-min: 228px;
   --row-height: 30px;
-  --metric-bar: 5px;
+  --metric-bar: 7px;
   --text-base: 13px;
   --text-md: 14px;
   --text-lg: 16px;
@@ -209,6 +211,15 @@
   --grad-line: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), rgba(99, 102, 241, 0.6) 45%, rgba(217, 70, 239, 0.45), transparent);
   --grad-veil: linear-gradient(140deg, rgba(6, 182, 212, 0.09), rgba(99, 102, 241, 0.05) 45%, rgba(217, 70, 239, 0.07));
   --grad-wash: linear-gradient(135deg, rgba(6, 182, 212, 0.16), rgba(99, 102, 241, 0.08) 46%, rgba(217, 70, 239, 0.14));
+  /* Ordinary controls are not grey. They keep a neutral face and a hairline — no gloss, no
+     hover lift — but the face itself is washed with the same spectrum, so a row of buttons
+     reads as part of this console instead of as stock chrome sitting on top of it. Hover
+     deepens the same three stops rather than switching to another colour. */
+  --grad-control: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(99, 102, 241, 0.1) 48%, rgba(217, 70, 239, 0.16));
+  --grad-control-hover: linear-gradient(135deg, rgba(6, 182, 212, 0.34), rgba(99, 102, 241, 0.2) 48%, rgba(217, 70, 239, 0.28));
+  /* Fields keep the faintest wash of the three: a hole you type into may pick up the light,
+     but it must stay a step below the faces you press. */
+  --grad-field: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(99, 102, 241, 0.04) 48%, rgba(217, 70, 239, 0.07));
   --grad-card: linear-gradient(135deg, #ffffff, #e8f1ff 38%, #eae7ff 72%, #fce4f6);
   --grad-card-hover: linear-gradient(135deg, #ffffff, #dceaff 36%, #e2ddff 70%, #fbd9f2);
   --glow-brand: 0 0 20px -6px rgba(99, 102, 241, 0.45);
@@ -310,6 +321,9 @@
   --grad-line: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.55), rgba(167, 139, 250, 0.7) 45%, rgba(244, 114, 182, 0.5), transparent);
   --grad-veil: linear-gradient(140deg, rgba(34, 211, 238, 0.1), rgba(124, 108, 255, 0.07) 45%, rgba(244, 114, 182, 0.08));
   --grad-wash: linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(124, 108, 255, 0.1) 46%, rgba(244, 114, 182, 0.11));
+  --grad-control: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(124, 108, 255, 0.12) 48%, rgba(244, 114, 182, 0.12));
+  --grad-control-hover: linear-gradient(135deg, rgba(34, 211, 238, 0.28), rgba(124, 108, 255, 0.22) 48%, rgba(244, 114, 182, 0.2));
+  --grad-field: linear-gradient(135deg, rgba(34, 211, 238, 0.07), rgba(124, 108, 255, 0.06) 48%, rgba(244, 114, 182, 0.05));
   /* The dark card is a tinted slab, not a wash over one: four steps along the spectrum, all
      dark enough to carry --text at 14px. */
   --grad-card: linear-gradient(135deg, #101a2f, #141d3c 40%, #1a1a3d 74%, #22163a);

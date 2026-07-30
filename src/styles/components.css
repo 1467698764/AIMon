@@ -1,9 +1,10 @@
-/* Buttons. Three faces, and colour is what separates them: a cool tinted neutral for
-   ordinary actions, a brand-tinted face for 测活 (the action this tool exists for), and a
-   solid brand-blue slab for the one committing action in view. An all-grey set of controls
-   on a grey-white page had nothing but luminance to tell the tiers apart, which read as
-   unfinished rather than as restrained. Tight 8px corner, hairline border, no gloss and no
-   hover lift. */
+/* Buttons. Three faces, and colour is what separates them: a washed neutral for ordinary
+   actions, a brand-tinted face for 测活 (the action this tool exists for), and a solid brand
+   gradient slab for the one committing action in view. An all-grey set of controls on a
+   grey-white page had nothing but luminance to tell the tiers apart, which read as
+   unfinished rather than as restrained — so even the neutral tier carries a wash of the one
+   spectrum, deepening on hover. Tight 8px corner, hairline border, no gloss and no hover
+   lift. */
 .button {
   display: inline-flex;
   align-items: center;
@@ -13,7 +14,8 @@
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--control-face);
+  background-color: var(--control-face);
+  background-image: var(--grad-control);
   color: var(--text-soft);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -23,12 +25,13 @@
 }
 .button > svg { flex: none; color: var(--text-faint); }
 .button:hover:not(:disabled) {
-  background: var(--control-face-hover);
+  background-color: var(--control-face-hover);
+  background-image: var(--grad-control-hover);
   border-color: var(--control-border-hover);
   color: var(--text);
 }
 .button:hover:not(:disabled) > svg { color: var(--text-soft); }
-.button:active:not(:disabled) { background: var(--control-face-active); }
+.button:active:not(:disabled) { background-color: var(--control-face-active); }
 .button:disabled { opacity: 0.45; }
 
 /* The one gradient slab on the page, and the only control allowed to glow: a filled surface
@@ -103,7 +106,8 @@
 .button.compact { min-height: 28px; padding: 0 var(--space-3); font-size: var(--text-xs); }
 .button.block { width: 100%; }
 /* Icon-only buttons need a resting face too, otherwise the only thing marking them
-   as controls is a hover state the user has to find first. */
+   as controls is a hover state the user has to find first. Same washed neutral as the
+   text buttons — a strip of six grey squares in the header was the last flat grey left. */
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -113,13 +117,15 @@
   flex: none;
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--control-face);
+  background-color: var(--control-face);
+  background-image: var(--grad-control);
   color: var(--text-muted);
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease);
 }
 .icon-button:hover:not(:disabled) {
-  background: var(--accent-face);
+  background-color: var(--accent-face);
+  background-image: none;
   border-color: var(--accent-border);
   color: var(--accent-ink);
 }
@@ -155,7 +161,8 @@
   padding: 3px;
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--field-face);
+  background-color: var(--field-face);
+  background-image: var(--grad-field);
 }
 .segmented > button {
   display: inline-flex;
@@ -303,7 +310,8 @@ textarea {
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--field-face);
+  background-color: var(--field-face);
+  background-image: var(--grad-field);
   color: var(--text);
   font-size: var(--text-base);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
@@ -371,7 +379,8 @@ input[type='checkbox'], input[type='radio'] {
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--control-border);
-  background: var(--field-face);
+  background-color: var(--field-face);
+  background-image: var(--grad-field);
   color: var(--text-muted);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
@@ -421,7 +430,8 @@ kbd {
   padding: 0 5px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
-  background: var(--surface-sunken);
+  background-color: var(--surface-sunken);
+  background-image: var(--grad-field);
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -516,7 +526,8 @@ kbd {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border-strong);
-  background: var(--surface-raised);
+  background-color: var(--surface-raised);
+  background-image: var(--grad-veil);
   box-shadow: var(--shadow-3);
   pointer-events: auto;
   animation: aimon-pop var(--dur) var(--ease-out);

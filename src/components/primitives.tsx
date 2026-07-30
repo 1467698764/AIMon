@@ -54,7 +54,7 @@ export function HealthBreakdown({ models, activeModelIds = noActiveModelIds }: {
   </div>
 }
 
-/** One reading on the card: short label, value, then the gauge beside them on the same line. */
+/** One reading on the card: name and value on one line, the gauge across the width below. */
 export function MetricStat({ metric, label, hint, value }: {
   metric: LatencyMetric
   label: string
