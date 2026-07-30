@@ -238,7 +238,7 @@
   overflow: hidden;
 }
 .metric-gauge.tone-good { color: var(--good); }
-.metric-gauge.tone-warning { color: var(--warn); }
+.metric-gauge.tone-warning { color: var(--warn-bar); }
 .metric-gauge.tone-bad { color: var(--bad); }
 /* No measurement yet: a faint track rather than an outlined pill, which read as an
    empty input field sitting in the middle of the card. */

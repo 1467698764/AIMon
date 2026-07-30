@@ -5,7 +5,7 @@ import { fmtTime } from '../lib/format'
 import { sortModels, type HealthScope, type SortMode } from '../lib/health'
 import { copyText } from '../lib/view'
 import { AttemptModal } from './AttemptModal'
-import { IconButton, MetricGaugeCells, StatusBadge, SuccessReadout } from './primitives'
+import { IconButton, MetricGaugeCells, StatusBadge, SuccessCells } from './primitives'
 
 export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTargetFor, onNotice }: {
   group: GroupItem
@@ -48,8 +48,8 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
             </div>
             <StatusBadge model={model} activeTarget={activeTarget} />
           </header>
-          <SuccessReadout model={model} activeTarget={activeTarget} />
           <div className="model-metrics">
+            <SuccessCells model={model} activeTarget={activeTarget} />
             <MetricGaugeCells metric="ttfb" label="平均首字" hint="平均首字（TTFB，首个响应字节）" value={model.avgTtfbMs} />
             <MetricGaugeCells metric="ttft" label="平均 TTFT" hint="平均 TTFT（首个非空文本 token）" value={model.avgTtftMs} />
             <MetricGaugeCells metric="total" label="平均耗时" hint="平均耗时（读取完成）" value={model.avgTotalMs} />
@@ -62,13 +62,14 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
             <div className="model-card-tools">
               {attempts.length > 0 && <button
                 type="button"
-                className={`attempt-link ${live ? 'is-live' : failures ? 'has-failures' : ''}`}
+                /* The tally itself now lives in the metrics grid, so the link only has to be a
+                   door; spelling out "N 次失败" again is what pushed this row onto two lines. */
+                className={`attempt-link ${live ? 'is-live' : ''}`}
+                title={live
+                  ? `本轮测活进行中，已完成 ${attempts.length}/${model.liveAttemptCount || activeTarget?.attemptCount || attempts.length} 次 · 查看详情`
+                  : `${failures ? `${failures} 次失败` : `${model.successCount ?? successes} 次成功`} · 查看详情`}
                 onClick={() => setDetailsModelId(model.id)}
-              >
-                {live
-                  ? `第 ${attempts.length}/${model.liveAttemptCount || activeTarget?.attemptCount || attempts.length} 次 · 详情`
-                  : `${failures ? `${failures} 次失败` : `${model.successCount ?? successes} 次成功`} · 详情`}
-              </button>}
+              >详情</button>}
               <IconButton title="复制模型名称" onClick={() => void copyName(model.name)}><Copy size={14} /></IconButton>
               <IconButton
                 title="用自定义问题测活此模型"

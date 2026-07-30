@@ -162,47 +162,39 @@
 /* Model cards. These are the one thing on the page that stays a card: a model is the
    object you read, compare and act on, so it gets its own edge, ground, radius and contact
    shadow. Turning them into flat cells of a table made the whole list one grey field with
-   nothing to grab. The status colour rides the top edge and tints the border, so a row of
-   cards can be scanned by colour alone. */
+   nothing to grab. The gap between cards is deliberately wider than the rhythm inside one:
+   when both were 8px the card had no inside, and a row of them read as one striped block. */
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--model-card-min), 1fr));
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding-bottom: var(--space-4);
 }
 .model-card {
-  --card-accent: var(--border-strong);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--card-pad);
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--card-accent) 26%, var(--border));
+  border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-1);
   overflow: hidden;
   min-width: 0;
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.model-card::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 3px;
-  background: var(--card-accent);
-}
 .model-card:hover {
-  border-color: color-mix(in srgb, var(--card-accent) 52%, var(--border-strong));
+  border-color: var(--border-strong);
   box-shadow: var(--shadow-2);
 }
-.model-card-excellent { --card-accent: var(--good); }
-.model-card-available { --card-accent: var(--warn); }
-.model-card-failed { --card-accent: var(--bad); }
-.model-card-pending { --card-accent: var(--idle-border); }
-.model-card.checking { --card-accent: var(--brand); }
-.model-card.queued { --card-accent: var(--brand-border); }
+/* Only two states earn the card's edge: a failure, and a round in flight. A colour band
+   plus a tinted border on every card meant four colours of frame in one screen, and the
+   healthy majority was drawn as loudly as the one model that had actually stopped
+   answering. Health itself is read from the badge, the dots and the bars inside. */
+.model-card-failed { border-color: color-mix(in srgb, var(--bad) 34%, var(--border)); }
+.model-card.checking,
+.model-card.queued { border-color: var(--brand-border); }
 
 .model-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .model-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -229,47 +221,41 @@
 }
 .model-icon { flex: none; color: var(--text-faint); display: grid; place-items: center; }
 
-/* Success band: the card's headline verdict, tinted so it reads without parsing numbers. */
-.success-readout {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-sunken);
-}
-.success-readout > .metric-value { font-size: var(--text-md); font-weight: 700; }
-.success-readout > .metric-value.tone-neutral { color: var(--text-muted); font-size: var(--text-base); }
-.success-readout.tone-good { border-color: var(--good-border); background: var(--good-soft); }
-.success-readout.tone-warning { border-color: var(--warn-border); background: var(--warn-soft); }
-.success-readout.tone-bad { border-color: var(--bad-border); background: var(--bad-soft); }
-.success-readout.tone-good > .metric-label { color: var(--good-ink); }
-.success-readout.tone-warning > .metric-label { color: var(--warn-ink); }
-.success-readout.tone-bad > .metric-label { color: var(--bad-ink); }
-
 .attempt-dots { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
 .attempt-dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
 .attempt-dots > i.ok { background: var(--good); }
 
-/* Shared three-column grid so labels, gauges and readouts line up across every row. */
+/* Shared three-column grid so labels, gauges and readouts line up across every row. The
+   success rate is the first row of it rather than a tinted band of its own: as a separate
+   band it repeated the grid's own label/value pair one line above it, cost the card a
+   border, a ground and 37px of height, and added a fourth tint to a card that already had
+   enough. */
 .model-metrics {
   display: grid;
   grid-template-columns: auto minmax(32px, 1fr) auto;
   align-items: center;
   gap: var(--space-2) var(--space-3);
 }
+.metric-dots { display: flex; align-items: center; min-width: 0; }
+.metric-dots .attempt-dots { margin-left: 0; }
+/* Latency numbers stay ink: the bar beside each one already carries its colour, and three
+   tinted numbers under a tinted verdict made every healthy card as loud as a broken one.
+   Red is the exception — that one is worth reading before the bar. */
+.model-metrics .metric-value.tone-good:not(.success-value),
+.model-metrics .metric-value.tone-warning:not(.success-value) { color: var(--text-soft); }
+.success-value { font-weight: 700; }
+.success-value.tone-neutral { color: var(--text-muted); }
 
 /* The footer carries one fact and four controls. It wraps rather than shrinks: a
    monitoring tool may not clip the last-checked time, and "07-30 14:2…" is exactly
    what a one-line flex row produced once the detail link and three icon buttons had
-   taken their share of a narrow card. */
+   taken their share of a narrow card. The hairline sits with equal air above and below. */
 .model-card-footer {
   display: flex;
   align-items: center;
   gap: var(--space-2) var(--space-3);
   flex-wrap: wrap;
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
 .model-card-tools { display: flex; align-items: center; gap: var(--space-2); flex: none; margin-left: auto; }
@@ -306,7 +292,10 @@
   white-space: nowrap;
 }
 .attempt-link:hover { border-color: var(--control-border-hover); color: var(--text); }
-.attempt-link.has-failures { border-color: var(--bad-border); background: var(--bad-soft); color: var(--bad-ink); }
+/* No red face here. A single failed request inside an otherwise available round used to
+   paint this chip red, which made the quietest control on the card the loudest thing on
+   it — louder than the badge that says 可用. The failure is already in the dots, the
+   success value, the badge and, when the round failed outright, the card's own edge. */
 /* A live round wears the brand tint, the same language every other "in progress" state
    on the page uses, so the count reads as counting up rather than as a final tally. */
 .attempt-link.is-live { border-color: var(--brand-border); background: var(--brand-soft); color: var(--accent-ink); }

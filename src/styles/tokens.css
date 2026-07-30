@@ -56,7 +56,9 @@
   /* Density-driven layout rhythm. The panel itself is frameless, so --panel-pad is
      vertical rhythm rather than an inset: only the model cards still have an inside. */
   --panel-pad: var(--space-4);
-  --card-pad: var(--space-5);
+  /* The card holds four short rows; a 16px inset around them made a 227px-tall card out of
+     ~150px of content. The inset is now one step under the gap between cards. */
+  --card-pad: var(--space-4);
   --section-gap: var(--space-5);
   /* The card has to hold a full timestamp (07-30 14:23:45) on the same line as the detail
      link and three icon controls. At 268px it could not, so the time was clipped to
@@ -67,7 +69,7 @@
 }
 [data-density='compact'] {
   --panel-pad: var(--space-3);
-  --card-pad: var(--space-4);
+  --card-pad: var(--space-3);
   --section-gap: var(--space-4);
   --model-card-min: 292px;
   --row-height: 30px;
@@ -150,6 +152,10 @@
   --warn-ink: #8f5300;
   --warn-soft: #fff8e0;
   --warn-border: #f3d673;
+  /* Step 11 of a yellow scale is brown by construction — it has to be dark enough to read
+     as small text. As a bar it read as dried mud next to the green ones, so bars use the
+     vivid step instead; a bar does not have to carry a glyph. */
+  --warn-bar: #ffb224;
 
   --bad: #ce2c31;
   --bad-ink: #b81f24;
@@ -229,6 +235,7 @@
   --warn-ink: #ffd472;
   --warn-soft: #2a1e08;
   --warn-border: #573300;
+  --warn-bar: #ffc53d;
 
   --bad: #ff6369;
   --bad-ink: #ff9592;

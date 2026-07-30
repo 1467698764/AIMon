@@ -84,23 +84,24 @@ function AttemptDots({ attempts }: { attempts: HealthAttempt[] }) {
   </span>
 }
 
-/** Leading readout of a model card: the tinted band that answers "is this model healthy". */
-export function SuccessReadout({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
+/** First row of `.model-metrics`: the card's headline verdict, in the same three columns. */
+export function SuccessCells({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
   const running = activeTarget?.status === 'running'
   const tone: LatencyTone = activeTarget ? 'neutral' : successTone(model)
   /* While a round runs the dots report that round as it lands, one per finished request. */
   const dots = activeTarget ? model.liveAttempts : model.attempts
   const done = Math.max(model.liveAttempts.length, activeTarget?.attempt || 1)
   const value = running
-    ? `第${done}/${model.liveAttemptCount || activeTarget.attemptCount}次`
+    ? `${done}/${model.liveAttemptCount || activeTarget.attemptCount}`
     : activeTarget
       ? '排队'
       : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
-  return <div className={`success-readout tone-${tone}`} title={`测活成功率：${value}`}>
-    <span className="metric-label">成功率</span>
-    <strong className={`metric-value tone-${tone}`}>{value}</strong>
-    <AttemptDots attempts={dots} />
-  </div>
+  const title = `测活成功率：${value}`
+  return <>
+    <span className="metric-label" title={title}>成功率</span>
+    <span className="metric-dots" title={title}><AttemptDots attempts={dots} /></span>
+    <span className={`metric-value success-value tone-${tone}`} title={title}>{value}</span>
+  </>
 }
 
 export function StatusBadge({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
