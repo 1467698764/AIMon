@@ -1,11 +1,10 @@
-/* The canvas is flat apart from one very faint cool wash at the top: a coloured glow
-   behind the content is decoration a monitoring tool does not need, and the brand-tinted
-   version made the first panel look like it sat in a spotlight. */
+/* The canvas is flat. The gradient wash used to lighten the top 420px, which put a visible
+   horizontal seam across the page once the panels below it were frameless. */
 .app-shell {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, var(--canvas-tint), var(--canvas) 420px);
+  background: var(--canvas);
 }
 
 /* Header */
@@ -19,8 +18,8 @@
   min-height: var(--header-height);
   padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8));
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: saturate(160%) blur(14px);
+  background: var(--header-glass);
+  backdrop-filter: saturate(140%) blur(14px);
 }
 
 .brand { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
@@ -133,8 +132,10 @@
 
 /* Workbench: the single sticky toolbar over the site list. Search + status on the
    first line, scope + sort + view controls on the second, one hairline between them.
-   It is a band, not a card: no border, no radius and no shadow, just a frosted ground so
-   the list can scroll under it and a hairline marking where it ends. */
+   It is a band, not a card: its ground is the canvas colour rather than the surface
+   colour, so it reads as part of the page even while the list scrolls under it. A white
+   frosted band on a grey canvas looked like a wide card wedged between the title and the
+   first site — exactly the seam it is supposed not to have. */
 .workbench {
   position: sticky;
   top: var(--header-height);
@@ -143,7 +144,7 @@
   flex-direction: column;
   border-bottom: 1px solid var(--border);
   background: var(--glass);
-  backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(140%);
 }
 .workbench-row {
   display: flex;
@@ -429,7 +430,7 @@
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--glass);
-    backdrop-filter: blur(14px) saturate(160%);
+    backdrop-filter: blur(14px) saturate(140%);
     box-shadow: var(--shadow-1);
   }
   .site-directory > header { display: none; }

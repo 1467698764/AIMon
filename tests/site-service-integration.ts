@@ -227,13 +227,38 @@ const modelId = Number(db.prepare(`
   INSERT INTO models (group_id, name, selected, sort_order)
   VALUES (?, 'corrupted-history-model', 1, 0)
 `).run(autoGroupId).lastInsertRowid)
+const autoRevision = Number((db.prepare('SELECT config_revision FROM sites WHERE id = ?')
+  .get(autoSiteId) as Record<string, any>).config_revision)
 db.prepare(`
   INSERT INTO health_checks (model_id, checked_at, success_count, attempt_count, config_revision, status, attempts_json)
-  VALUES (?, ?, 0, 3, 1, 'failed', 'not-json')
-`).run(modelId, new Date().toISOString())
-const damagedModel = getDashboard().sites[0].groups[0].models
+  VALUES (?, ?, 0, 3, ?, 'failed', 'not-json')
+`).run(modelId, new Date().toISOString(), autoRevision)
+const damagedModel = getDashboard().sites
+  .flatMap((site: any) => site.groups)
+  .flatMap((group: any) => group.models)
   .find((model: any) => model.id === modelId)
+assert.equal(damagedModel.status, 'failed')
 assert.deepEqual(damagedModel.attempts, [])
+
+// An in-flight round is reported separately: the dashboard must surface the attempts written
+// so far without letting the unfinished row change the model's verdict.
+db.prepare(`
+  INSERT INTO health_checks (model_id, checked_at, success_count, attempt_count, config_revision, status, attempts_json, custom_prompt)
+  VALUES (?, ?, 1, 3, ?, 'pending', ?, 'ping')
+`).run(
+  modelId,
+  new Date().toISOString(),
+  autoRevision,
+  JSON.stringify([{ ok: true, ttfbMs: 10, ttftMs: 20, totalMs: 30, httpStatus: 200 }]),
+)
+const liveModel = getDashboard().sites
+  .flatMap((site: any) => site.groups)
+  .flatMap((group: any) => group.models)
+  .find((model: any) => model.id === modelId)
+assert.equal(liveModel.liveAttempts.length, 1)
+assert.equal(liveModel.liveAttemptCount, 3)
+assert.equal(liveModel.liveCustomPrompt, 'ping')
+assert.equal(liveModel.status, 'failed')
 
 globalThis.fetch = async (input) => {
   const url = String(input)

@@ -44,7 +44,7 @@ export const prefs = {
   setSort(value: string) { write(keys.sort, value) },
 }
 
-const themeColors: Record<'light' | 'dark', string> = { light: '#f2f4f9', dark: '#0c0f16' }
+const themeColors: Record<'light' | 'dark', string> = { light: '#f9f9fb', dark: '#111113' }
 
 export function systemPrefersDark(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'

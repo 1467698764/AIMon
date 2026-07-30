@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#f2f4f9" />
+    <meta name="theme-color" content="#f9f9fb" />
     <title>AIMon - AI 渠道测活</title>
     <script>
       /* Paint the stored theme before the first frame: React only applies it after mount,
@@ -20,7 +20,7 @@
           root.dataset.themeChoice = choice
           root.style.colorScheme = dark ? 'dark' : 'light'
           root.dataset.density = localStorage.getItem('aimon-density') === 'compact' ? 'compact' : 'comfortable'
-          document.querySelector('meta[name="theme-color"]').content = dark ? '#0c0f16' : '#f2f4f9'
+          document.querySelector('meta[name="theme-color"]').content = dark ? '#111113' : '#f9f9fb'
         } catch (error) { /* Preferences are best-effort only. */ }
       })()
     </script>

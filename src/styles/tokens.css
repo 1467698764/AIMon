@@ -58,7 +58,10 @@
   --panel-pad: var(--space-4);
   --card-pad: var(--space-5);
   --section-gap: var(--space-5);
-  --model-card-min: 268px;
+  /* The card has to hold a full timestamp (07-30 14:23:45) on the same line as the detail
+     link and three icon controls. At 268px it could not, so the time was clipped to
+     "07-30 14:2…" — the one fact on the card that a monitoring tool must not truncate. */
+  --model-card-min: 324px;
   --row-height: 34px;
   --metric-bar: 6px;
 }
@@ -66,7 +69,7 @@
   --panel-pad: var(--space-3);
   --card-pad: var(--space-4);
   --section-gap: var(--space-4);
-  --model-card-min: 238px;
+  --model-card-min: 292px;
   --row-height: 30px;
   --metric-bar: 5px;
   --text-base: 13px;
@@ -80,164 +83,169 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  /* The neutral ramp carries a faint blue cast on purpose. A strictly neutral black /
-     white / grey screen with grey buttons read as unfinished — three greys stacked on
-     each other have nothing to separate them but luminance. Colour now does the work:
-     the ramp is cool, the primary button is brand blue, and 测活 wears a brand tint. */
-  --canvas: #f2f4f9;
-  --canvas-tint: #eaedf5;
+  /* Neutrals and brand are taken from the Radix Colors scales (slate + indigo, with
+     green / amber / red for status) rather than hand-mixed. Two things were wrong before:
+     the ramp was mixed by eye, and the canvas sat four steps below white, so every white
+     surface on it — the toolbar band, every model card — read as a pale patch pasted onto
+     a grey page. The canvas is now one step below white (slate 2 against #fff): a card is
+     still clearly a card, but the page no longer looks split into two colours. */
+  --canvas: #f9f9fb;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #f5f7fc;
-  --surface-hover: #eef1f8;
-  --surface-active: #e3e8f3;
-  --overlay-scrim: rgba(18, 22, 34, 0.44);
+  --surface-sunken: #f4f4f7;
+  --surface-hover: #f0f0f3;
+  --surface-active: #e8e8ec;
+  --overlay-scrim: rgba(24, 27, 31, 0.42);
 
-  --border: #d5dae7;
-  --border-subtle: #e3e7f1;
-  --border-strong: #bcc4d6;
+  --border: #dcdce2;
+  --border-subtle: #ebebef;
+  --border-strong: #c3c4cd;
 
-  /* Ordinary buttons sit on a cool tinted face — light enough to stay quiet next to the
-     blue primary, tinted enough that it never reads as flat grey. Input-like controls
-     get --field-face, a step lighter still: a field is a hole you type into, a button is
-     a face you press. */
-  --control-face: #e9edf7;
-  --control-face-hover: #dee4f2;
-  --control-face-active: #d1d9ec;
-  --control-border: #c9d1e3;
-  --control-border-hover: #adb9d3;
-  /* Primary is the brand blue again. One saturated slab per screen is the fastest thing
-     on the page to find, and it tells the user which action commits. */
-  --primary-face: #2f5bea;
-  --primary-face-hover: #2247c9;
+  /* Ordinary buttons sit a step below the surface they are on; input-like controls sit on
+     --field-face, level with the canvas, because a field is a hole you type into and a
+     button is a face you press. */
+  --control-face: #f4f4f7;
+  --control-face-hover: #ebebef;
+  --control-face-active: #e0e1e6;
+  --control-border: #d6d7de;
+  --control-border-hover: #b9bbc6;
+  /* Indigo 9/10: one saturated slab per screen, marking the action that commits. */
+  --primary-face: #3e63dd;
+  --primary-face-hover: #3358d4;
   --primary-ink: #ffffff;
-  /* 测活 is what this tool exists for, so it gets a brand-tinted face of its own —
-     visibly the same family as the primary without competing with it. */
-  --accent-face: #e6edff;
-  --accent-face-hover: #d7e2ff;
-  --accent-border: #bacdff;
-  --accent-ink: #21449f;
-  --field-face: #f4f6fc;
-  --field-face-disabled: #e8ebf3;
-  --glass: color-mix(in srgb, #ffffff 84%, transparent);
+  /* 测活 is what this tool exists for, so it gets a brand tint of its own — the same
+     family as the primary without competing with it. */
+  --accent-face: #edf2fe;
+  --accent-face-hover: #e1e9ff;
+  --accent-border: #c1d0ff;
+  --accent-ink: #3a5bc7;
+  --field-face: #f9f9fb;
+  --field-face-disabled: #f0f0f3;
+  /* Two frosted grounds: sticky bands over the canvas take --glass so they disappear into
+     the page instead of reading as a white card, and the header takes --header-glass. */
+  --glass: color-mix(in srgb, #f9f9fb 88%, transparent);
+  --header-glass: color-mix(in srgb, #ffffff 86%, transparent);
 
-  --text: #111621;
-  --text-soft: #414a5e;
-  --text-muted: #5b6478;
-  --text-faint: #757e92;
+  --text: #1c2024;
+  --text-soft: #3b4048;
+  --text-muted: #60646c;
+  --text-faint: #80838d;
   --text-inverse: #ffffff;
 
-  --brand: #2f5bea;
-  --brand-strong: #2247c9;
-  --brand-soft: #eaf0ff;
-  --brand-soft-strong: #d8e2ff;
-  --brand-border: #bfd0ff;
+  --brand: #3e63dd;
+  --brand-strong: #3358d4;
+  --brand-soft: #edf2fe;
+  --brand-soft-strong: #e1e9ff;
+  --brand-border: #c1d0ff;
   --brand-contrast: #ffffff;
 
-  --good: #12805c;
-  --good-ink: #0e6a4d;
-  --good-soft: #e8f7f1;
-  --good-border: #bfe5d6;
+  /* Status colours are the readable step of each scale (11), not the vivid step (9):
+     these are used as small text as often as they are used as bars. */
+  --good: #218358;
+  --good-ink: #1a6f4a;
+  --good-soft: #e9f9ee;
+  --good-border: #b4dfc4;
 
-  --warn: #a9670a;
-  --warn-ink: #8c5409;
-  --warn-soft: #fdf4e3;
-  --warn-border: #f0dcb4;
+  --warn: #ab6400;
+  --warn-ink: #8f5300;
+  --warn-soft: #fff8e0;
+  --warn-border: #f3d673;
 
-  --bad: #c62f42;
-  --bad-ink: #a82736;
-  --bad-soft: #fdeef0;
-  --bad-border: #f2ccd3;
+  --bad: #ce2c31;
+  --bad-ink: #b81f24;
+  --bad-soft: #ffefef;
+  --bad-border: #f9c6c6;
 
-  --idle: #626b7c;
-  --idle-soft: #f1f3f9;
-  --idle-border: #e1e6f0;
-  --metric-track: rgba(17, 22, 33, 0.09);
+  --idle: #60646c;
+  --idle-soft: #f4f4f7;
+  --idle-border: #e8e8ec;
+  --metric-track: rgba(28, 32, 36, 0.09);
 
   /* Shadows are short and tight rather than wide and soft: depth comes from a crisp
      edge plus a close contact shadow, so a card reads as a sheet of paper on the
      canvas instead of hovering an inch above it. */
-  --shadow-1: 0 1px 2px rgba(17, 22, 33, 0.06);
-  --shadow-2: 0 2px 6px -2px rgba(17, 22, 33, 0.12), 0 1px 2px rgba(17, 22, 33, 0.06);
-  --shadow-3: 0 22px 44px -22px rgba(17, 22, 33, 0.3), 0 2px 8px rgba(17, 22, 33, 0.07);
-  --shadow-brand: 0 6px 14px -8px rgba(47, 91, 234, 0.5);
-  --ring: 0 0 0 3px rgba(47, 91, 234, 0.22);
-  --grid-line: rgba(17, 22, 33, 0.05);
-  --panel-head: #f7f9fd;
+  --shadow-1: 0 1px 2px rgba(24, 27, 31, 0.05);
+  --shadow-2: 0 2px 6px -2px rgba(24, 27, 31, 0.1), 0 1px 2px rgba(24, 27, 31, 0.06);
+  --shadow-3: 0 22px 44px -22px rgba(24, 27, 31, 0.28), 0 2px 8px rgba(24, 27, 31, 0.06);
+  --shadow-brand: 0 6px 14px -8px rgba(62, 99, 221, 0.5);
+  --ring: 0 0 0 3px rgba(62, 99, 221, 0.2);
+  --grid-line: rgba(28, 32, 36, 0.05);
+  --panel-head: #f4f4f7;
 }
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --canvas: #0c0f16;
-  --canvas-tint: #10141c;
-  --surface: #161b24;
-  --surface-raised: #1c222c;
-  --surface-sunken: #12161e;
-  --surface-hover: #212834;
-  --surface-active: #29313f;
-  --overlay-scrim: rgba(5, 7, 11, 0.66);
+  /* Radix slate dark: near-black canvas, surfaces one and two steps up. The card is
+     defined by being lighter than the page, so the same "one step" rule as light mode
+     applies — a card two shades off the canvas reads as a floating tile. */
+  --canvas: #111113;
+  --surface: #18191b;
+  --surface-raised: #212225;
+  --surface-sunken: #141517;
+  --surface-hover: #212225;
+  --surface-active: #272a2d;
+  --overlay-scrim: rgba(0, 0, 0, 0.62);
 
-  --border: #29303d;
-  --border-subtle: #212734;
-  --border-strong: #3a4252;
+  --border: #2e3135;
+  --border-subtle: #26282b;
+  --border-strong: #43484e;
 
-  --control-face: #242c39;
-  --control-face-hover: #2e3745;
-  --control-face-active: #364052;
-  --control-border: #39424f;
-  --control-border-hover: #4f5a6b;
-  /* Primary stays brand blue in dark mode too. It is the one saturated slab on a
-     near-black canvas, which is exactly what makes it findable. */
-  --primary-face: #3a63e8;
-  --primary-face-hover: #4a72f2;
+  --control-face: #212225;
+  --control-face-hover: #2b2e31;
+  --control-face-active: #343840;
+  --control-border: #33363a;
+  --control-border-hover: #4a4f56;
+  --primary-face: #3e63dd;
+  --primary-face-hover: #5472e4;
   --primary-ink: #ffffff;
-  --accent-face: #1b2444;
-  --accent-face-hover: #232f57;
-  --accent-border: #32407a;
-  --accent-ink: #a8beff;
-  --field-face: #0f131a;
-  --field-face-disabled: #1b202a;
-  --glass: color-mix(in srgb, #161b24 86%, transparent);
+  --accent-face: #182449;
+  --accent-face-hover: #1d2e62;
+  --accent-border: #304384;
+  --accent-ink: #9eb1ff;
+  --field-face: #131416;
+  --field-face-disabled: #1c1e21;
+  --glass: color-mix(in srgb, #111113 88%, transparent);
+  --header-glass: color-mix(in srgb, #18191b 86%, transparent);
 
-  --text: #edf0f6;
-  --text-soft: #c4cad6;
-  --text-muted: #a3aab9;
-  --text-faint: #8890a0;
-  --text-inverse: #0c0f16;
+  --text: #edeef0;
+  --text-soft: #c5c7ca;
+  --text-muted: #b0b4ba;
+  --text-faint: #878b92;
+  --text-inverse: #111113;
 
-  --brand: #6a8dff;
-  --brand-strong: #8aa5ff;
-  --brand-soft: #1a2440;
-  --brand-soft-strong: #223055;
-  --brand-border: #2f4272;
-  --brand-contrast: #08101f;
+  --brand: #7f96f5;
+  --brand-strong: #9eb1ff;
+  --brand-soft: #182449;
+  --brand-soft-strong: #1d2e62;
+  --brand-border: #304384;
+  --brand-contrast: #ffffff;
 
-  --good: #43cd9b;
-  --good-ink: #7fe0bd;
-  --good-soft: #10281f;
-  --good-border: #1d4738;
+  --good: #3dd68c;
+  --good-ink: #7ce0ad;
+  --good-soft: #10291f;
+  --good-border: #20573e;
 
-  --warn: #e3ac52;
-  --warn-ink: #f0c579;
-  --warn-soft: #2a2010;
-  --warn-border: #4a3a17;
+  --warn: #ffc53d;
+  --warn-ink: #ffd472;
+  --warn-soft: #2a1e08;
+  --warn-border: #573300;
 
-  --bad: #f4788b;
-  --bad-ink: #f8a0ae;
-  --bad-soft: #2c1419;
+  --bad: #ff6369;
+  --bad-ink: #ff9592;
+  --bad-soft: #291416;
   --bad-border: #52222c;
 
-  --idle: #98a0b0;
-  --idle-soft: #181d26;
-  --idle-border: #29303d;
+  --idle: #878b92;
+  --idle-soft: #1b1d20;
+  --idle-border: #2b2e31;
   --metric-track: rgba(255, 255, 255, 0.1);
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.36);
-  --shadow-2: 0 2px 8px -2px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 2px 8px -2px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-3: 0 24px 46px -22px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-brand: 0 6px 14px -8px rgba(74, 113, 242, 0.6);
-  --ring: 0 0 0 3px rgba(106, 141, 255, 0.32);
+  --shadow-brand: 0 6px 14px -8px rgba(84, 114, 228, 0.6);
+  --ring: 0 0 0 3px rgba(127, 150, 245, 0.3);
   --grid-line: rgba(255, 255, 255, 0.05);
-  --panel-head: #1a202a;
+  --panel-head: #1a1b1e;
 }
 

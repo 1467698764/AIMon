@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   insertedChecks: [] as Array<{ id: number; modelId: number }>,
   completedAttempts: new Map<number, any[]>(),
   completedStatuses: new Map<number, string>(),
+  liveAttempts: new Map<number, any[]>(),
   healthAttempts: 3,
   healthTimeoutMs: 300_000,
   nextCheckId: 1,
@@ -44,6 +45,14 @@ vi.mock('./db.js', () => ({
           run: (...args: any[]) => {
             mocks.completedAttempts.set(Number(args[8]), JSON.parse(String(args[7])))
             mocks.completedStatuses.set(Number(args[8]), String(args[6]))
+            return { changes: 1 }
+          },
+        }
+      }
+      if (/UPDATE health_checks SET success_count = \?, attempts_json = \?/i.test(sql)) {
+        return {
+          run: (_successCount: number, json: string, id: number) => {
+            mocks.liveAttempts.set(Number(id), JSON.parse(String(json)))
             return { changes: 1 }
           },
         }
@@ -101,6 +110,7 @@ afterEach(() => {
   mocks.insertedChecks.length = 0
   mocks.completedAttempts.clear()
   mocks.completedStatuses.clear()
+  mocks.liveAttempts.clear()
   mocks.healthAttempts = 3
   mocks.healthTimeoutMs = 300_000
 })
@@ -228,6 +238,31 @@ describe('health job runtime state', () => {
     expect(mocks.remoteFetch).toHaveBeenCalledTimes(2)
     expect(mocks.completedStatuses.get(check.id)).toBe('excellent')
     expect(mocks.completedAttempts.get(check.id)?.[0]).toMatchObject({ ok: true })
+  })
+
+  it('publishes every attempt as it lands instead of only at the end of the round', async () => {
+    mocks.getHealthTargets.mockReturnValue([target(secondModelId, 'model-live')])
+    let releaseSecond!: () => void
+    const secondRequest = new Promise<void>((resolve) => { releaseSecond = resolve })
+    mocks.remoteFetch.mockImplementation(async () => {
+      if (mocks.remoteFetch.mock.calls.length === 2) await secondRequest
+      return successResponse()
+    })
+
+    const job = startHealthCheck({ modelId: secondModelId })
+    const check = await vi.waitFor(() => {
+      const row = mocks.insertedChecks.find((item) => item.modelId === secondModelId)
+      expect(row).toBeTruthy()
+      return row!
+    })
+    await vi.waitFor(() => expect(mocks.liveAttempts.get(check.id)).toHaveLength(1))
+    expect(mocks.liveAttempts.get(check.id)?.[0]).toMatchObject({ ok: true })
+    expect(mocks.completedAttempts.has(check.id)).toBe(false)
+
+    releaseSecond()
+    await waitForJob(job.id)
+    expect(mocks.liveAttempts.get(check.id)).toHaveLength(3)
+    expect(mocks.completedAttempts.get(check.id)).toHaveLength(3)
   })
 
   it('never prunes a slow active job while many newer jobs complete', async () => {

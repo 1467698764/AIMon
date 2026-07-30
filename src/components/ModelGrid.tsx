@@ -29,7 +29,12 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
       {models.map((model, index) => {
         const activeTarget = activeTargetFor(model.id)
         const checking = Boolean(activeTarget)
-        const failures = model.attempts.filter((attempt) => !attempt.ok).length
+        /* While a round is running the card reports that round, not the previous one: the
+           server rewrites the in-flight attempts after every request. */
+        const live = checking && model.liveAttempts.length > 0
+        const attempts = live ? model.liveAttempts : model.attempts
+        const failures = attempts.filter((attempt) => !attempt.ok).length
+        const successes = attempts.length - failures
         const cardStatus = activeTarget ? 'pending' : model.status
         return <article
           className={`model-card model-card-${cardStatus} ${activeTarget?.status === 'running' ? 'checking' : activeTarget?.status === 'queued' ? 'queued' : ''}`}
@@ -54,20 +59,28 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
               <Clock size={13} />
               <time dateTime={model.checkedAt || undefined}>{fmtTime(model.checkedAt)}</time>
             </span>
-            {model.attempts.length > 0 && <button type="button" className={`attempt-link ${failures ? 'has-failures' : ''}`} onClick={() => setDetailsModelId(model.id)}>
-              {failures ? `${failures} 次失败` : `${model.successCount ?? model.attempts.length} 次成功`} · 详情
-            </button>}
-            <IconButton title="复制模型名称" onClick={() => void copyName(model.name)}><Copy size={14} /></IconButton>
-            <IconButton
-              title="用自定义问题测活此模型"
-              disabled={checking}
-              onClick={() => onCustomHealth({ modelId: model.id }, model.name)}
-            ><MessageSquareText size={14} /></IconButton>
-            <IconButton
-              title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'}
-              disabled={checking}
-              onClick={() => onHealth({ modelId: model.id })}
-            ><RefreshCw className={activeTarget?.status === 'running' ? 'spin' : ''} size={15} /></IconButton>
+            <div className="model-card-tools">
+              {attempts.length > 0 && <button
+                type="button"
+                className={`attempt-link ${live ? 'is-live' : failures ? 'has-failures' : ''}`}
+                onClick={() => setDetailsModelId(model.id)}
+              >
+                {live
+                  ? `第 ${attempts.length}/${model.liveAttemptCount || activeTarget?.attemptCount || attempts.length} 次 · 详情`
+                  : `${failures ? `${failures} 次失败` : `${model.successCount ?? successes} 次成功`} · 详情`}
+              </button>}
+              <IconButton title="复制模型名称" onClick={() => void copyName(model.name)}><Copy size={14} /></IconButton>
+              <IconButton
+                title="用自定义问题测活此模型"
+                disabled={checking}
+                onClick={() => onCustomHealth({ modelId: model.id }, model.name)}
+              ><MessageSquareText size={14} /></IconButton>
+              <IconButton
+                title={activeTarget?.status === 'running' ? '此模型正在测活' : activeTarget?.status === 'queued' ? '此模型等待测活' : '测活此模型'}
+                disabled={checking}
+                onClick={() => onHealth({ modelId: model.id })}
+              ><RefreshCw className={activeTarget?.status === 'running' ? 'spin' : ''} size={15} /></IconButton>
+            </div>
           </footer>
         </article>
       })}

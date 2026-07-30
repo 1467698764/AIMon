@@ -28,6 +28,10 @@ export interface ModelItem {
   status: HealthStatus
   customPrompt: string
   attempts: HealthAttempt[]
+  /** Attempts of the round that is running right now, republished after every request. */
+  liveAttempts: HealthAttempt[]
+  liveAttemptCount: number | null
+  liveCustomPrompt: string
 }
 
 export interface GroupItem {

@@ -88,15 +88,18 @@ function AttemptDots({ attempts }: { attempts: HealthAttempt[] }) {
 export function SuccessReadout({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
   const running = activeTarget?.status === 'running'
   const tone: LatencyTone = activeTarget ? 'neutral' : successTone(model)
+  /* While a round runs the dots report that round as it lands, one per finished request. */
+  const dots = activeTarget ? model.liveAttempts : model.attempts
+  const done = Math.max(model.liveAttempts.length, activeTarget?.attempt || 1)
   const value = running
-    ? `第${activeTarget.attempt || 1}/${activeTarget.attemptCount}次`
+    ? `第${done}/${model.liveAttemptCount || activeTarget.attemptCount}次`
     : activeTarget
       ? '排队'
       : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
   return <div className={`success-readout tone-${tone}`} title={`测活成功率：${value}`}>
     <span className="metric-label">成功率</span>
     <strong className={`metric-value tone-${tone}`}>{value}</strong>
-    {!activeTarget && <AttemptDots attempts={model.attempts} />}
+    <AttemptDots attempts={dots} />
   </div>
 }
 

@@ -21,6 +21,9 @@ function model(partial: Partial<ModelItem> & { id: number; name: string }): Mode
     status: 'available',
     customPrompt: '',
     attempts: [],
+    liveAttempts: [],
+    liveAttemptCount: null,
+    liveCustomPrompt: '',
     ...partial,
   }
 }

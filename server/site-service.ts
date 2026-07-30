@@ -693,6 +693,16 @@ export async function refreshHealthMetadata(scope: { siteId?: number; groupId?: 
 }
 
 export function getDashboard() {
+  /** A damaged historical row must not break the dashboard. */
+  function parseAttempts(json: unknown): unknown[] {
+    if (typeof json !== 'string' || !json) return []
+    try {
+      const parsed = JSON.parse(json)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
   const sites: any[] = all('SELECT * FROM sites WHERE configured = 1 ORDER BY sort_order, id').map((site) => {
     const groups = all(`
       SELECT * FROM site_groups WHERE site_id = ? AND selected = 1 ORDER BY sort_order, id
@@ -702,25 +712,35 @@ export function getDashboard() {
           h.checked_at AS checkedAt, h.success_count AS successCount, h.attempt_count AS attemptCount,
           h.avg_ttfb_ms AS avgTtfbMs, h.avg_ttft_ms AS avgTtftMs, h.avg_total_ms AS avgTotalMs,
           COALESCE(h.status, 'pending') AS status, h.attempts_json AS attemptsJson,
-          h.custom_prompt AS customPrompt
+          h.custom_prompt AS customPrompt,
+          live.attempts_json AS liveAttemptsJson, live.attempt_count AS liveAttemptCount,
+          live.custom_prompt AS livePrompt
         FROM models m
         LEFT JOIN health_checks h ON h.id = (
           SELECT id FROM health_checks
           WHERE model_id = m.id AND status <> 'pending' AND config_revision = ?
           ORDER BY checked_at DESC, id DESC LIMIT 1
         )
+        /* The row of the check that is running right now. runTarget rewrites its
+           attempts_json after every single request, so the dashboard can report a
+           multi-attempt round while it is still in flight instead of only at the end. */
+        LEFT JOIN health_checks live ON live.id = (
+          SELECT id FROM health_checks
+          WHERE model_id = m.id AND status = 'pending' AND config_revision = ?
+          ORDER BY id DESC LIMIT 1
+        )
         WHERE m.group_id = ? AND m.selected = 1
         ORDER BY m.sort_order, m.id
-      `, site.config_revision, group.id).map((model) => {
-        const { attemptsJson, customPrompt, ...visible } = model
-        let attempts: unknown[] = []
-        if (attemptsJson) {
-          try {
-            const parsed = JSON.parse(attemptsJson)
-            if (Array.isArray(parsed)) attempts = parsed
-          } catch { /* Keep a damaged historical row from breaking the dashboard. */ }
+      `, site.config_revision, site.config_revision, group.id).map((model) => {
+        const { attemptsJson, customPrompt, liveAttemptsJson, liveAttemptCount, livePrompt, ...visible } = model
+        return {
+          ...visible,
+          customPrompt: customPrompt || '',
+          attempts: parseAttempts(attemptsJson),
+          liveAttempts: parseAttempts(liveAttemptsJson),
+          liveAttemptCount: liveAttemptCount == null ? null : Number(liveAttemptCount),
+          liveCustomPrompt: livePrompt || '',
         }
-        return { ...visible, customPrompt: customPrompt || '', attempts }
       })
       return {
         id: group.id,

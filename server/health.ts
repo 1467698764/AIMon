@@ -412,6 +412,13 @@ async function runTarget(
     if (attempt.error) attempt.error = redactSensitiveText(attempt.error, [target.apiKey])
     if (attempt.reply) attempt.reply = redactSensitiveText(attempt.reply, [target.apiKey])
     attempts.push(attempt)
+    /* Publish the round as it happens. A three-attempt check on a reasoning model can take
+       minutes, and waiting for the last request before writing anything meant the detail
+       view showed nothing at all until the whole round was over. The row stays 'pending' —
+       only a finished round may change the model's verdict — so this feeds the live view
+       without touching averages, status or ordering. */
+    db.prepare('UPDATE health_checks SET success_count = ?, attempts_json = ? WHERE id = ? AND status = \'pending\'')
+      .run(attempts.filter((item) => item.ok).length, JSON.stringify(attempts), checkId)
   }
   const successes = attempts.filter((attempt) => attempt.ok)
   const status: HealthStatus = successes.length === attemptCount

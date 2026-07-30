@@ -28,7 +28,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-6);
-  background: linear-gradient(180deg, var(--canvas-tint), var(--canvas) 60%);
+  background: var(--canvas);
 }
 .auth-panel {
   display: flex;
@@ -384,6 +384,21 @@
 .attempt-overview strong { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 
 .attempt-list { display: flex; flex-direction: column; gap: var(--space-3); }
+/* The list is written to while it is open, so it says so: without this line a
+   two-of-three list looks like a finished round that simply lost a request. */
+.attempt-live-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.attempt-live-note > svg { flex: none; }
 /* Same soft top accent as the model cards, for the same reason: a 3px left slab of
    colour fights the row's curve, and the header already states pass or fail. */
 .attempt-item {
