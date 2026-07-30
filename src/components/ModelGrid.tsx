@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Bot, Clock, Copy, MessageSquareText, RefreshCw } from 'lucide-react'
+import { Clock, Copy, MessageSquareText, RefreshCw } from 'lucide-react'
 import type { GroupItem, HealthJobTarget } from '../types'
 import { fmtTime } from '../lib/format'
 import { sortModels, type HealthScope, type SortMode } from '../lib/health'
 import { copyText } from '../lib/view'
 import { AttemptModal } from './AttemptModal'
-import { IconButton, MetricGaugeCells, StatusBadge, SuccessCells } from './primitives'
+import { AttemptDots, IconButton, MetricStat, StatusBadge } from './primitives'
 
 export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTargetFor, onNotice }: {
   group: GroupItem
@@ -43,16 +43,15 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
           <header className="model-card-header">
             <div className="model-card-title">
               {ranked && <span className="model-rank">{index + 1}</span>}
-              <span className="model-icon"><Bot size={15} /></span>
               <h4 title={model.name}>{model.name}</h4>
             </div>
-            <StatusBadge model={model} activeTarget={activeTarget} />
+            <AttemptDots attempts={attempts} />
+            <StatusBadge model={model} activeTarget={activeTarget} score />
           </header>
           <div className="model-metrics">
-            <SuccessCells model={model} activeTarget={activeTarget} />
-            <MetricGaugeCells metric="ttfb" label="平均首字" hint="平均首字（TTFB，首个响应字节）" value={model.avgTtfbMs} />
-            <MetricGaugeCells metric="ttft" label="平均 TTFT" hint="平均 TTFT（首个非空文本 token）" value={model.avgTtftMs} />
-            <MetricGaugeCells metric="total" label="平均耗时" hint="平均耗时（读取完成）" value={model.avgTotalMs} />
+            <MetricStat metric="ttfb" label="首字" hint="平均首字（TTFB，首个响应字节）" value={model.avgTtfbMs} />
+            <MetricStat metric="ttft" label="TTFT" hint="平均 TTFT（首个非空文本 token）" value={model.avgTtftMs} />
+            <MetricStat metric="total" label="耗时" hint="平均耗时（读取完成）" value={model.avgTotalMs} />
           </div>
           <footer className="model-card-footer">
             <span className="model-checked" title={`最近测活 ${fmtTime(model.checkedAt)}`}>
@@ -62,8 +61,8 @@ export function ModelGrid({ group, sortMode, onHealth, onCustomHealth, activeTar
             <div className="model-card-tools">
               {attempts.length > 0 && <button
                 type="button"
-                /* The tally itself now lives in the metrics grid, so the link only has to be a
-                   door; spelling out "N 次失败" again is what pushed this row onto two lines. */
+                /* The tally itself now rides in the status badge, so the link only has to be
+                   a door; spelling out "N 次失败" again is what pushed this row onto two lines. */
                 className={`attempt-link ${live ? 'is-live' : ''}`}
                 title={live
                   ? `本轮测活进行中，已完成 ${attempts.length}/${model.liveAttemptCount || activeTarget?.attemptCount || attempts.length} 次 · 查看详情`

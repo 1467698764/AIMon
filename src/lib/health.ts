@@ -43,13 +43,6 @@ export function latencyTick(metric: LatencyMetric): number {
   return latencyThresholds[metric][0] / latencyCeiling(metric)
 }
 
-export function successTone(model: ModelItem): LatencyTone {
-  if (model.successCount == null || model.attemptCount == null) return 'neutral'
-  if (model.successCount >= model.attemptCount) return 'good'
-  if (model.successCount >= Math.ceil(model.attemptCount * 2 / 3)) return 'warning'
-  return 'bad'
-}
-
 export function effectiveModelStatus(model: ModelItem, activeModelIds: ReadonlySet<number> = noActiveModelIds): HealthStatus {
   return activeModelIds.has(model.id) ? 'pending' : model.status
 }

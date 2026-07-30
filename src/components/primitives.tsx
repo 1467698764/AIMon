@@ -4,8 +4,8 @@ import { Activity, CircleAlert, LoaderCircle, X } from 'lucide-react'
 import type { HealthAttempt, HealthJobTarget, ModelItem } from '../types'
 import { fmtMs } from '../lib/format'
 import {
-  latencyFill, latencyTick, latencyTone, noActiveModelIds, statusCounts, statusError, statusLabels, successTone,
-  type LatencyMetric, type LatencyTone,
+  latencyFill, latencyTick, latencyTone, noActiveModelIds, statusCounts, statusError, statusLabels,
+  type LatencyMetric,
 } from '../lib/health'
 
 export function IconButton({ title, children, onClick, tone = 'default', disabled = false, pressed, className = '' }: {
@@ -54,8 +54,8 @@ export function HealthBreakdown({ models, activeModelIds = noActiveModelIds }: {
   </div>
 }
 
-/** Renders the three cells of one latency row directly into the `.model-metrics` grid. */
-export function MetricGaugeCells({ metric, label, hint, value }: {
+/** One column of the card's metric row: label, reading, then the gauge under both. */
+export function MetricStat({ metric, label, hint, value }: {
   metric: LatencyMetric
   label: string
   hint: string
@@ -64,53 +64,49 @@ export function MetricGaugeCells({ metric, label, hint, value }: {
   const tone = latencyTone(metric, value)
   const fill = latencyFill(metric, value)
   const readout = fmtMs(value)
-  const title = `${hint}：${readout}`
-  return <>
-    <span className="metric-label" title={title}>{label}</span>
-    <span className={`metric-gauge tone-${tone} ${fill == null ? 'empty' : ''}`} title={title} aria-hidden="true">
+  return <div className="metric-stat" title={`${hint}：${readout}`}>
+    <span className="metric-label">{label}</span>
+    <span className={`metric-value tone-${tone}`}>{readout}</span>
+    <span className={`metric-gauge tone-${tone} ${fill == null ? 'empty' : ''}`} aria-hidden="true">
       {fill != null && <>
         <span className="gauge-fill" style={{ width: `${fill * 100}%` }} />
         <span className="gauge-tick" style={{ left: `${latencyTick(metric) * 100}%` }} />
       </>}
     </span>
-    <span className={`metric-value tone-${tone}`} title={title}>{readout}</span>
-  </>
+  </div>
 }
 
-function AttemptDots({ attempts }: { attempts: HealthAttempt[] }) {
+export function AttemptDots({ attempts }: { attempts: HealthAttempt[] }) {
   if (!attempts.length) return null
   return <span className="attempt-dots" aria-hidden="true">
     {attempts.map((attempt, index) => <i key={index} className={attempt.ok ? 'ok' : 'bad'} />)}
   </span>
 }
 
-/** First row of `.model-metrics`: the card's headline verdict, in the same three columns. */
-export function SuccessCells({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
-  const running = activeTarget?.status === 'running'
-  const tone: LatencyTone = activeTarget ? 'neutral' : successTone(model)
-  /* While a round runs the dots report that round as it lands, one per finished request. */
-  const dots = activeTarget ? model.liveAttempts : model.attempts
-  const done = Math.max(model.liveAttempts.length, activeTarget?.attempt || 1)
-  const value = running
-    ? `${done}/${model.liveAttemptCount || activeTarget.attemptCount}`
-    : activeTarget
-      ? '排队'
-      : model.successCount == null || model.attemptCount == null ? '--' : `${model.successCount}/${model.attemptCount}`
-  const title = `测活成功率：${value}`
-  return <>
-    <span className="metric-label" title={title}>成功率</span>
-    <span className="metric-dots" title={title}><AttemptDots attempts={dots} /></span>
-    <span className={`metric-value success-value tone-${tone}`} title={title}>{value}</span>
-  </>
-}
-
-export function StatusBadge({ model, activeTarget }: { model: ModelItem; activeTarget?: HealthJobTarget }) {
+/**
+ * The verdict, optionally with the round's tally beside it. The tally is opt-in because the
+ * details modal prints 成功次数 and 失败次数 as fields of their own two lines below.
+ */
+export function StatusBadge({ model, activeTarget, score = false }: {
+  model: ModelItem
+  activeTarget?: HealthJobTarget
+  score?: boolean
+}) {
   const title = statusError(model)
-  const label = activeTarget?.status === 'running' ? '测活中' : activeTarget?.status === 'queued' ? '排队中' : statusLabels[model.status]
+  const running = activeTarget?.status === 'running'
+  const label = running ? '测活中' : activeTarget?.status === 'queued' ? '排队中' : statusLabels[model.status]
   const active = Boolean(activeTarget)
+  /* A live round counts up as its requests land; a finished one shows what it scored. */
+  const done = Math.max(model.liveAttempts.length, activeTarget?.attempt || 1)
+  const tally = running
+    ? `${done}/${model.liveAttemptCount || activeTarget.attemptCount}`
+    : activeTarget || model.successCount == null || model.attemptCount == null
+      ? null
+      : `${model.successCount}/${model.attemptCount}`
   return <span className={`status status-${active ? 'pending' : model.status}`} title={title || label}>
-    {active && <LoaderCircle size={13} className={activeTarget?.status === 'running' ? 'spin' : ''} />}
+    {active && <LoaderCircle size={13} className={running ? 'spin' : ''} />}
     <span className="status-dot" />{label}
+    {score && tally && <b>{tally}</b>}
   </span>
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, CircleAlert, ExternalLink, GripVertical, Layers3,
+  ChevronDown, ChevronRight, CircleAlert, ExternalLink, GripVertical,
   LoaderCircle, MessageSquareText, MoveDown, MoveUp, Pencil, RefreshCw, Server, Trash2,
 } from 'lucide-react'
 import { api } from '../api'
@@ -208,7 +208,7 @@ export function SitePanel({
         >{siteExpanded ? <ChevronDown size={19} /> : <ChevronRight size={19} />}</button>
       </div>
       <div className="site-identity">
-        <div className="site-mark"><Server size={18} /></div>
+        <div className="site-mark"><Server size={19} /></div>
         <div>
           <div className="site-name-line">
             <h2 title={site.name}>{site.name}</h2>
@@ -293,7 +293,7 @@ export function SitePanel({
                 onClick={() => void toggleGroup(group)}
               >{group.expanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
               <div className="group-title">
-                <Layers3 size={15} />
+                <span className="level-tag">分组</span>
                 <h3 title={group.name}>{group.name}</h3>
                 {group.platform && <span title={group.platform}>{group.platform}</span>}
               </div>

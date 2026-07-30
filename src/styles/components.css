@@ -181,6 +181,16 @@
   white-space: nowrap;
 }
 .status .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+/* Opt-in tally. It rides inside the badge on the model card, where the badge's own tint
+   already colours it, so the card does not need a second row to say 2/3. */
+.status > b {
+  margin-left: 1px;
+  padding-left: 5px;
+  border-left: 1px solid currentColor;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
 .status-excellent { color: var(--good-ink); border-color: var(--good-border); background: var(--good-soft); }
 .status-available { color: var(--warn-ink); border-color: var(--warn-border); background: var(--warn-soft); }
 .status-failed { color: var(--bad-ink); border-color: var(--bad-border); background: var(--bad-soft); }

@@ -1,19 +1,29 @@
-/* Site panel. Frameless: a site is a section of the page, not an object sitting on it, so
-   it has no border, no ground and no shadow of its own — its header type and one hairline
-   carry the structure. The model cards inside it are the only real cards left, which is
-   what makes them read as the things you act on. */
+/* Three levels, three grounds. The page used to state its hierarchy with type size and a
+   single hairline: every container was frameless, so a group header and a site header were
+   the same kind of naked row and you had to read the words to tell which one you were
+   looking at. Each level now has a ground of its own, and the ramp runs one way — the
+   deeper the tint, the higher the level. A site is a framed panel with a tinted title
+   band, a group is a recessed strip inside it carrying a 分组 tag and a brand-tinted tab
+   edge, and a model is a raised card on the panel floor. */
 .site-panel {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  /* The floor is the canvas colour, so the panel is marked by its edge rather than by a
+     second shade of page, and the cards on it keep the same contrast they had before. */
+  background: var(--canvas);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
 }
 .site-panel-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1.1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--panel-pad) 0;
-  background: transparent;
+  padding: var(--panel-pad) var(--space-5);
+  background: var(--panel-head);
   border-bottom: 1px solid var(--border);
 }
 .site-reorder { display: flex; align-items: center; gap: 2px; }
@@ -37,8 +47,8 @@
 .site-mark {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   flex: none;
   border-radius: var(--radius-md);
   border: 1px solid var(--accent-border);
@@ -47,7 +57,10 @@
 }
 .site-identity > div:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .site-name-line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex-wrap: wrap; }
-.site-name-line h2 { font-size: var(--text-lg); letter-spacing: -0.02em; }
+/* The top level of the ramp gets the largest type on the page after the app title: at 17px
+   it sat one step above a group name and two above a model name, which is not enough of a
+   gap to read as "this is the container everything below belongs to". */
+.site-name-line h2 { font-size: var(--text-xl); letter-spacing: -0.02em; }
 .site-link { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .site-link > a {
   font-size: var(--text-sm);
@@ -96,13 +109,13 @@
 .site-actions { display: flex; align-items: center; gap: var(--space-2); justify-content: flex-end; }
 .mobile-order { display: none; }
 
-/* The stale-metadata warning is a notice, so it keeps a tinted body of its own even
-   though the panel around it is frameless. */
+/* The stale-metadata warning is a notice, so it keeps a tinted body of its own. It sits on
+   the panel floor under the title band, so it carries the panel's own inset. */
 .site-sync-warning {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-3);
+  margin: var(--space-4) var(--space-5) 0;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--warn-border);
@@ -116,22 +129,42 @@
 
 /* Groups */
 .group-stack { display: flex; flex-direction: column; }
-/* A hairline above every group but the first: without the panel frame, the gap alone did
-   not say where one group's cards stopped and the next group began. */
-.group + .group { border-top: 1px solid var(--border-subtle); }
+/* The group is the middle level, so it is a recessed strip rather than a naked row: a
+   ground one step deeper than the panel floor, a hairline top and bottom, and a
+   brand-tinted tab down its left edge. The strip runs full-bleed to the panel edge on
+   purpose — an inset strip would read as a third kind of card. */
 .group-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) 0 var(--space-3);
-  background: transparent;
+  padding: var(--space-3) var(--space-5);
+  background: var(--group-head);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: inset 3px 0 0 var(--brand-border);
 }
+/* The site band's own bottom edge already closes the top of the first strip. */
+.group:first-child .group-header { border-top: none; }
 .group-leading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .group-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin-left: 2px; }
-.group-title > svg { flex: none; color: var(--brand); }
+/* One word beats one glyph. The layers icon that used to sit here said "some kind of
+   container" and nothing more; 分组 says which level you are looking at, which is the
+   whole complaint the tag exists to answer. */
+.level-tag {
+  flex: none;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 .group-title h3 {
-  font-size: var(--text-base);
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -158,17 +191,19 @@
 .group-meta b { color: var(--text); font-variant-numeric: tabular-nums; }
 .group-meta .standard-ratio { color: var(--text); }
 .group-actions { display: flex; align-items: center; gap: var(--space-2); }
+/* The "no groups yet" placeholder stands in for the strips and cards, so it takes the same
+   inset they do rather than butting against the panel frame. */
+.group-stack > .empty-inline { margin: var(--space-4) var(--space-5); }
 
-/* Model cards. These are the one thing on the page that stays a card: a model is the
-   object you read, compare and act on, so it gets its own edge, ground, radius and contact
-   shadow. Turning them into flat cells of a table made the whole list one grey field with
-   nothing to grab. The gap between cards is deliberately wider than the rhythm inside one:
-   when both were 8px the card had no inside, and a row of them read as one striped block. */
+/* Model cards. The bottom level, and the one thing on the page that stays a card: a model
+   is the object you read, compare and act on, so it gets its own edge, ground, radius and
+   contact shadow, and it is the lightest ground in the ramp. The grid carries the panel's
+   inset so the cards sit on the panel floor rather than running into its frame. */
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--model-card-min), 1fr));
   gap: var(--space-4);
-  padding-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-5);
 }
 .model-card {
   position: relative;
@@ -196,8 +231,12 @@
 .model-card.checking,
 .model-card.queued { border-color: var(--brand-border); }
 
-.model-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.model-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+/* Three rows and nothing else: name and verdict, one row of readings, one row of controls.
+   The old card stacked six — a header, a success band and three full-width latency rows —
+   and at 193px tall a screen held four of them. Name, dots and badge share row one; the
+   dots wrap rather than push the badge off the end. */
+.model-card-header { display: flex; align-items: center; gap: var(--space-2) var(--space-3); }
+.model-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; }
 .model-card-title h4 {
   font-size: var(--text-md);
   font-weight: 650;
@@ -219,32 +258,40 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.model-icon { flex: none; color: var(--text-faint); display: grid; place-items: center; }
 
-.attempt-dots { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
+/* Up to ten attempts a round, so the dots cannot be a single unbreakable line: at 8px plus
+   a 4px gap ten of them are 116px, which is a third of a card. They wrap into two rows and
+   the badge keeps its place. */
+.attempt-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 76px;
+  margin-left: auto;
+}
 .attempt-dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
 .attempt-dots > i.ok { background: var(--good); }
 
-/* Shared three-column grid so labels, gauges and readouts line up across every row. The
-   success rate is the first row of it rather than a tinted band of its own: as a separate
-   band it repeated the grid's own label/value pair one line above it, cost the card a
-   border, a ground and 37px of height, and added a fourth tint to a card that already had
-   enough. */
+/* One row, three columns, each a small stat: label, reading, gauge. As three full-width
+   rows this was 99px of card for three numbers, and the labels ("平均首字") were longer
+   than the values they introduced — the long form now lives in the tooltip. */
 .model-metrics {
   display: grid;
-  grid-template-columns: auto minmax(32px, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
 }
-.metric-dots { display: flex; align-items: center; min-width: 0; }
-.metric-dots .attempt-dots { margin-left: 0; }
-/* Latency numbers stay ink: the bar beside each one already carries its colour, and three
-   tinted numbers under a tinted verdict made every healthy card as loud as a broken one.
+.metric-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metric-stat .metric-label { font-size: var(--text-2xs); line-height: 1.2; }
+.metric-stat .metric-value { line-height: 1.2; }
+/* Latency numbers stay ink: the bar under each one already carries its colour, and three
+   tinted numbers beside a tinted verdict made every healthy card as loud as a broken one.
    Red is the exception — that one is worth reading before the bar. */
-.model-metrics .metric-value.tone-good:not(.success-value),
-.model-metrics .metric-value.tone-warning:not(.success-value) { color: var(--text-soft); }
-.success-value { font-weight: 700; }
-.success-value.tone-neutral { color: var(--text-muted); }
+.metric-stat .metric-value.tone-good,
+.metric-stat .metric-value.tone-warning { color: var(--text-soft); }
+.metric-stat .metric-gauge { margin-top: 2px; }
 
 /* The footer carries one fact and four controls. It wraps rather than shrinks: a
    monitoring tool may not clip the last-checked time, and "07-30 14:2…" is exactly
@@ -295,7 +342,7 @@
 /* No red face here. A single failed request inside an otherwise available round used to
    paint this chip red, which made the quietest control on the card the loudest thing on
    it — louder than the badge that says 可用. The failure is already in the dots, the
-   success value, the badge and, when the round failed outright, the card's own edge. */
+   badge's tally and, when the round failed outright, the card's own edge. */
 /* A live round wears the brand tint, the same language every other "in progress" state
    on the page uses, so the count reads as counting up rather than as a final tally. */
 .attempt-link.is-live { border-color: var(--brand-border); background: var(--brand-soft); color: var(--accent-ink); }
@@ -311,11 +358,15 @@
 }
 
 @media (max-width: 860px) {
+  /* One step of inset less at every level: on a 390px screen the 16px gutters cost the
+     card row a tenth of its width, and the frame is already doing the containing. */
   .site-panel-header {
     grid-template-columns: auto minmax(0, 1fr);
     gap: var(--space-3);
-    padding: var(--space-4) 0;
+    padding: var(--space-4);
   }
+  .site-sync-warning { margin: var(--space-3) var(--space-4) 0; }
+  .model-grid { padding: var(--space-4); }
   .site-reorder .drag-handle { display: none; }
   /* Reorder on the left, the destructive-capable cluster on the right. Spreading all
      four apart made four unrelated icons look like one evenly-spaced toolbar. */
@@ -330,7 +381,7 @@
   .group-header {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-2);
-    padding: var(--space-4) 0 var(--space-3);
+    padding: var(--space-3) var(--space-4);
   }
   .group-leading,
   .group-meta,
@@ -340,6 +391,7 @@
   .group-actions { justify-content: flex-start; }
   .group-leading .drag-handle { display: none; }
   .model-grid { grid-template-columns: minmax(0, 1fr); }
+  .group-stack > .empty-inline { margin: var(--space-4); }
   .site-sync-warning { flex-wrap: wrap; }
   .site-sync-warning > span { white-space: normal; overflow: visible; }
 }

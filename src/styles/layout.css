@@ -1,5 +1,6 @@
 /* The canvas is flat. The gradient wash used to lighten the top 420px, which put a visible
-   horizontal seam across the page once the panels below it were frameless. */
+   horizontal seam across the page — and a canvas that changes shade down the page also
+   breaks the level ramp, since a panel floor is read against it. */
 .app-shell {
   min-height: 100dvh;
   display: flex;
@@ -411,8 +412,9 @@
 .site-directory-list .health-breakdown { gap: var(--space-2); font-size: var(--text-2xs); }
 .site-directory-list .health-breakdown i { width: 6px; height: 6px; }
 
-/* Frameless panels need the gap between two sites to do the work the borders used to. */
-.site-list { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+/* The panels have frames again, so the gap between two sites no longer has to carry the
+   separation on its own and can come back one step. */
+.site-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .site-entry { min-width: 0; }
 
 /* Responsive: one breakpoint collapses the directory, one compacts the header. */
