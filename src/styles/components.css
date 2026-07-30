@@ -31,15 +31,27 @@
 .button:active:not(:disabled) { background: var(--control-face-active); }
 .button:disabled { opacity: 0.45; }
 
+/* The one gradient slab on the page, and the only control allowed to glow: a filled surface
+   that carries text has to stay dark at every stop, so --grad-brand runs teal → indigo →
+   magenta at readable depth rather than through the neon stops the decoration uses. */
 .button.primary {
-  background: var(--primary-face);
+  position: relative;
+  background: var(--grad-brand);
   border-color: transparent;
   color: var(--primary-ink);
-  box-shadow: var(--shadow-brand);
+  box-shadow: var(--shadow-brand), var(--glow-brand);
+}
+.button.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  pointer-events: none;
 }
 .button.primary > svg,
 .button.primary:hover:not(:disabled) > svg { color: currentColor; }
-.button.primary:hover:not(:disabled) { background: var(--primary-face-hover); border-color: transparent; color: var(--primary-ink); }
+.button.primary:hover:not(:disabled) { background: var(--grad-brand-hover); border-color: transparent; color: var(--primary-ink); }
 .button.primary:active:not(:disabled) { background: var(--primary-face); }
 
 /* .accent marks every 测活 entry: a brand tint, so the action the tool exists for is the
@@ -84,9 +96,9 @@
 .button.active > svg { color: currentColor; }
 .button.active:hover:not(:disabled) { background: var(--accent-face-hover); border-color: var(--brand); color: var(--accent-ink); }
 
-.button.danger { background: var(--bad); border-color: transparent; color: #fff; }
+.button.danger { background: var(--bad); border-color: transparent; color: var(--primary-ink); }
 .button.danger > svg { color: currentColor; }
-.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; color: #fff; }
+.button.danger:hover:not(:disabled) { background: var(--bad-ink); border-color: transparent; color: var(--primary-ink); }
 
 .button.compact { min-height: 28px; padding: 0 var(--space-3); font-size: var(--text-xs); }
 .button.block { width: 100%; }
@@ -161,7 +173,7 @@
 .segmented > button.active {
   background: var(--surface);
   color: var(--brand-strong);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--brand-border);
 }
 .segmented > button > b { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 650; }
 .segmented > button.active > b { color: var(--brand); }
@@ -196,7 +208,7 @@
 .status-failed { color: var(--bad-ink); border-color: var(--bad-border); background: var(--bad-soft); }
 .status-pending { color: var(--idle); border-color: var(--idle-border); background: var(--idle-soft); }
 .status-pending .status-dot { display: none; }
-.status-checking { color: var(--brand-strong); border-color: var(--brand-border); background: var(--brand-soft); }
+.status-checking { color: var(--brand-strong); border-color: var(--brand-border); background: var(--brand-soft); background-image: var(--grad-veil); }
 .status-checking .status-dot { display: none; }
 
 /* Health distribution pills */
@@ -253,11 +265,14 @@
 /* No measurement yet: a faint track rather than an outlined pill, which read as an
    empty input field sitting in the middle of the card. */
 .metric-gauge.empty { background: color-mix(in srgb, var(--metric-track) 45%, transparent); }
+/* The fill keeps the health colour — a gauge that ran through the spectrum would say nothing
+   about latency — but it is lit along its length rather than flat, which is what stops six
+   solid bars per card from reading as printed blocks. */
 .metric-gauge > .gauge-fill {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: currentColor;
+  background: linear-gradient(90deg, color-mix(in srgb, currentColor 55%, transparent), currentColor);
   transition: width var(--dur-slow) var(--ease-out);
 }
 .metric-gauge > .gauge-tick {
@@ -392,7 +407,7 @@ input[type='checkbox'], input[type='radio'] {
   bottom: 3px;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  background: var(--grad-line);
   background-size: 220% 100%;
   animation: aimon-shimmer 1s linear infinite;
 }
@@ -470,11 +485,15 @@ kbd {
   background: var(--surface-active);
   overflow: hidden;
 }
+/* Progress is always "in flight", so the bar is the spectrum itself and it sweeps: the fill
+   states how far along the run is, the sweep states that it is still moving. */
 .progress-track > i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--brand);
+  background: var(--grad-accent);
+  background-size: 220% 100%;
+  animation: aimon-sweep 2.2s linear infinite;
   transition: width var(--dur-slow) var(--ease-out);
 }
 /* Toast stack */

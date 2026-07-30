@@ -6,16 +6,32 @@
    band, a group is a recessed strip inside it carrying a 分组 tag and a brand-tinted tab
    edge, and a model is a raised card on the panel floor. */
 .site-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   /* The floor is the canvas colour, so the panel is marked by its edge rather than by a
-     second shade of page, and the cards on it keep the same contrast they had before. */
+     second shade of page, and the cards on it keep the same contrast they had before. The
+     veil over it is a wash, not a shade: a few percent of the spectrum so the floor picks up
+     the same light as the aurora behind the page without changing level. */
   background: var(--canvas);
+  background-image: var(--grad-veil);
   box-shadow: var(--shadow-1);
   overflow: hidden;
+}
+/* A spectrum hairline along the very top of the panel. It is the panel's own light edge —
+   the same one pixel of colour the header and the toolbar close with. */
+.site-panel::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--grad-line);
+  pointer-events: none;
+  z-index: 1;
 }
 .site-panel-header {
   display: grid;
@@ -24,6 +40,7 @@
   gap: var(--space-4);
   padding: var(--panel-pad) var(--space-5);
   background: var(--panel-head);
+  background-image: var(--grad-veil);
   border-bottom: 1px solid var(--border);
 }
 .site-reorder { display: flex; align-items: center; gap: 2px; }
@@ -44,16 +61,28 @@
 .drag-handle:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .site-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+/* Identity chips are the one family of surfaces painted with the spectrum: the app logo and
+   the site mark. Both say "this is a thing with a name", and both are small enough that a
+   gradient reads as a lit chip rather than as decoration spread over content. */
 .site-mark {
+  position: relative;
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
   flex: none;
   border-radius: var(--radius-md);
-  border: 1px solid var(--accent-border);
-  background: var(--accent-face);
-  color: var(--brand);
+  background: var(--grad-brand);
+  color: var(--brand-contrast);
+  box-shadow: var(--glow-brand);
+}
+.site-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  pointer-events: none;
 }
 .site-identity > div:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .site-name-line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex-wrap: wrap; }
@@ -134,6 +163,7 @@
    brand-tinted tab down its left edge. The strip runs full-bleed to the panel edge on
    purpose — an inset strip would read as a third kind of card. */
 .group-header {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -142,7 +172,17 @@
   background: var(--group-head);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  box-shadow: inset 3px 0 0 var(--brand-border);
+}
+/* The tab edge is a gradient rather than a flat brand line: it runs the full height of the
+   strip, so it is the one place on the page where the spectrum can be read vertically. */
+.group-header::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 3px;
+  background: var(--grad-accent);
+  pointer-events: none;
 }
 /* The site band's own bottom edge already closes the top of the first strip. */
 .group:first-child .group-header { border-top: none; }
@@ -155,7 +195,7 @@
   flex: none;
   padding: 1px var(--space-2);
   border-radius: var(--radius-xs);
-  background: var(--brand);
+  background: var(--grad-brand);
   color: var(--brand-contrast);
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -221,7 +261,7 @@
 }
 .model-card:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-2), var(--glow-brand);
 }
 /* Only two states earn the card's edge: a failure, and a round in flight. A colour band
    plus a tinted border on every card meant four colours of frame in one screen, and the
@@ -230,6 +270,20 @@
 .model-card-failed { border-color: color-mix(in srgb, var(--bad) 34%, var(--border)); }
 .model-card.checking,
 .model-card.queued { border-color: var(--brand-border); }
+/* A round in flight also gets a spectrum line sweeping across the top of the card — the same
+   signal the job strip uses, so "this one is running" reads the same at both scales. Queued
+   cards keep the tinted border only: a queue is not motion. */
+.model-card.checking::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: var(--grad-accent);
+  background-size: 200% 100%;
+  animation: aimon-sweep 2.4s linear infinite;
+  pointer-events: none;
+}
 
 /* Three rows and nothing else: name and verdict, one row of readings, one row of controls.
    The old card stacked six — a header, a success band and three full-width latency rows —

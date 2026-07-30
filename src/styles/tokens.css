@@ -85,186 +85,221 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  /* Warm ramp, ink-on-paper. The previous palette was cool grey plus indigo — the
-     default look of every admin template, and on a dense page of small text it reads
-     grey-blue and cheap. Neutrals are now warm: a low-chroma sand canvas and an
-     off-white paper surface, both pulled towards yellow rather than towards blue, with
-     brown-black ink instead of blue-black. Warmth is what makes the same layout read
-     as printed matter rather than as a browser default. */
-  --canvas: #f2efe9;
-  --surface: #fdfbf7;
-  --surface-raised: #fffdfa;
-  --surface-sunken: #ece8e0;
-  --surface-hover: #e8e3da;
-  --surface-active: #e0dad0;
-  --overlay-scrim: rgba(35, 29, 22, 0.44);
+  /* Cool luminous tech, light variant. The warm parchment ramp read as classical print,
+     which is the wrong genre for a machine-monitoring console: this thing watches relays
+     answer in milliseconds, so the surface should look lit rather than pressed. Neutrals
+     are pulled towards blue-violet instead of yellow, the canvas is a cold luminous grey
+     and every accent comes off one iridescent spectrum (cyan → indigo → magenta) that is
+     defined once at the bottom of this block. */
+  --canvas: #eceffa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e6eaf7;
+  --surface-hover: #e3e9fa;
+  --surface-active: #d7def4;
+  --overlay-scrim: rgba(9, 13, 33, 0.42);
 
-  --border: #dcd5c9;
-  --border-subtle: #e8e3d9;
-  --border-strong: #c2b8a8;
+  --border: #d4dbf0;
+  --border-subtle: #e3e8f7;
+  --border-strong: #aeb9dd;
 
   /* Ordinary buttons sit a step below the surface they are on; input-like controls sit on
      --field-face, level with the canvas, because a field is a hole you type into and a
      button is a face you press. */
-  --control-face: #ece8e0;
-  --control-face-hover: #e4dfd5;
-  --control-face-active: #dad3c7;
-  --control-border: #d6cfc1;
-  --control-border-hover: #b9ae9c;
-  /* The one saturated slab per screen, marking the action that commits. Deep wine rather
-     than blue: on warm paper a blue slab is the one thing on the page that looks like it
-     came from a different document. */
-  --primary-face: #7b3355;
-  --primary-face-hover: #692a48;
-  --primary-ink: #fdfbf7;
+  --control-face: #e8ecfa;
+  --control-face-hover: #dfe5f8;
+  --control-face-active: #d3dbf3;
+  --control-border: #cfd7ef;
+  --control-border-hover: #a6b2da;
+  /* The one saturated slab per screen, marking the action that commits. It is painted with
+     --grad-brand rather than this flat colour; --primary-face stays as the fallback and as
+     the :active step. */
+  --primary-face: #4f46e5;
+  --primary-face-hover: #4338ca;
+  --primary-ink: #ffffff;
   /* 测活 is what this tool exists for, so it gets a brand tint of its own — the same
      family as the primary without competing with it. */
-  --accent-face: #f6e9ef;
-  --accent-face-hover: #efdae4;
-  --accent-border: #e2c3d1;
-  --accent-ink: #7b3355;
-  --field-face: #f2efe9;
-  --field-face-disabled: #e9e5dd;
+  --accent-face: #e8ebff;
+  --accent-face-hover: #dce1ff;
+  --accent-border: #c2caff;
+  --accent-ink: #4a41d8;
+  --field-face: #f2f5fd;
+  --field-face-disabled: #e9edf8;
   /* Two frosted grounds: sticky bands over the canvas take --glass so they disappear into
      the page instead of reading as a white card, and the header takes --header-glass. */
-  --glass: color-mix(in srgb, #f2efe9 88%, transparent);
-  --header-glass: color-mix(in srgb, #fdfbf7 86%, transparent);
+  --glass: color-mix(in srgb, #eceffa 84%, transparent);
+  --header-glass: color-mix(in srgb, #f5f7ff 82%, transparent);
 
-  --text: #241f19;
-  --text-soft: #453d33;
-  --text-muted: #6d6355;
-  --text-faint: #8f8474;
-  --text-inverse: #fdfbf7;
+  --text: #0d1330;
+  --text-soft: #2f3a5f;
+  --text-muted: #5b6789;
+  --text-faint: #8a95b5;
+  --text-inverse: #ffffff;
 
-  --brand: #7b3355;
-  --brand-strong: #5f2440;
-  --brand-soft: #f6e9ef;
-  --brand-soft-strong: #efdae4;
-  --brand-border: #e2c3d1;
-  --brand-contrast: #fdfbf7;
+  --brand: #4f46e5;
+  --brand-strong: #3a2fd0;
+  --brand-soft: #e8ebff;
+  --brand-soft-strong: #dbe0ff;
+  --brand-border: #c2caff;
+  --brand-contrast: #ffffff;
 
-  /* Status colours stay dark enough to read as small text, and are pulled into the same
-     warm family as the neutrals: moss instead of emerald, ochre instead of amber, brick
-     instead of fire red. Three hues that belong to the page rather than three signal
-     lights bolted onto it. */
-  --good: #4a7a45;
-  --good-ink: #3c6538;
-  --good-soft: #eaf1e4;
-  --good-border: #c2d9b6;
+  /* Status colours stay dark enough to read as small text and sit in the same cool family
+     as the neutrals, so three verdicts read as part of the console rather than as three
+     signal lights bolted onto it. */
+  --good: #0e9f6e;
+  --good-ink: #067a54;
+  --good-soft: #e2f7ee;
+  --good-border: #a9e5cf;
 
-  --warn: #96650f;
-  --warn-ink: #7c530b;
-  --warn-soft: #faf0da;
-  --warn-border: #ebd3a0;
-  /* The readable step of an ochre scale is brown by construction — it has to be dark
+  --warn: #b45309;
+  --warn-ink: #96430a;
+  --warn-soft: #fdf1dd;
+  --warn-border: #f3d5a4;
+  /* The readable step of an amber scale is brown by construction — it has to be dark
      enough to carry small text. As a bar it read as dried mud beside the green ones, so
      bars use the vivid step instead; a bar does not have to carry a glyph. */
-  --warn-bar: #d99a20;
+  --warn-bar: #f59e0b;
 
-  --bad: #ad342c;
-  --bad-ink: #932820;
-  --bad-soft: #faeae6;
-  --bad-border: #eec7bd;
+  --bad: #d92b46;
+  --bad-ink: #b81e38;
+  --bad-soft: #fdeaee;
+  --bad-border: #f6c3ce;
 
-  --idle: #8f8474;
-  --idle-soft: #ece8e0;
-  --idle-border: #e2ddd3;
-  --metric-track: rgba(45, 36, 25, 0.11);
+  --idle: #8a95b5;
+  --idle-soft: #e9edf8;
+  --idle-border: #dde3f3;
+  --metric-track: rgba(30, 42, 92, 0.12);
 
-  /* Shadows are short, tight and warm rather than wide, soft and grey: depth comes from a
-     crisp edge plus a close contact shadow, so a card reads as a sheet of paper on the
-     canvas instead of hovering an inch above it. */
-  --shadow-1: 0 1px 2px rgba(60, 47, 32, 0.07);
-  --shadow-2: 0 2px 6px -2px rgba(60, 47, 32, 0.13), 0 1px 2px rgba(60, 47, 32, 0.08);
-  --shadow-3: 0 22px 44px -22px rgba(45, 34, 22, 0.34), 0 2px 8px rgba(45, 34, 22, 0.09);
-  --shadow-brand: 0 6px 14px -8px rgba(123, 51, 85, 0.5);
-  --ring: 0 0 0 3px rgba(123, 51, 85, 0.2);
+  /* Shadows are short and cool, and the brand shadow is a glow rather than a drop: a lit
+     control on a lit page is what makes the surface read as a screen. */
+  --shadow-1: 0 1px 2px rgba(20, 30, 70, 0.07);
+  --shadow-2: 0 6px 18px -8px rgba(20, 30, 70, 0.18), 0 1px 2px rgba(20, 30, 70, 0.08);
+  --shadow-3: 0 30px 60px -24px rgba(16, 24, 60, 0.34), 0 2px 10px rgba(16, 24, 60, 0.1);
+  --shadow-brand: 0 8px 22px -10px rgba(79, 70, 229, 0.55);
+  --ring: 0 0 0 3px rgba(79, 70, 229, 0.22);
   /* The title band of a site panel: the one tinted ground that says "container". Together
      with --group-head it makes the level ramp run one way — the deeper the tint, the higher
      the level: site band, group strip, panel floor (--canvas), model card (--surface). */
-  --panel-head: #e6e0d4;
-  --group-head: #ece8e0;
+  --panel-head: #dfe4f6;
+  --group-head: #e7ebf8;
+
+  /* One spectrum, declared once. Everything iridescent on the page is a slice of it, which
+     is what keeps "炫彩" from turning into a different gradient per component:
+       --grad-brand   filled surfaces that carry text (primary button, logo, 分组 tag) —
+                      dark enough at every stop for white ink,
+       --grad-accent  decoration only (hairlines, bars, glows), free to be bright,
+       --grad-text    background-clip text,
+       --grad-veil    a barely-there wash over glass panels,
+       --aurora-*     the three drifting lights behind the whole page. */
+  --grad-brand: linear-gradient(115deg, #0e7490, #4f46e5 46%, #a21caf);
+  --grad-brand-hover: linear-gradient(115deg, #0c6579, #4338ca 46%, #8d18a0);
+  --grad-accent: linear-gradient(115deg, #06b6d4, #6366f1 46%, #d946ef);
+  --grad-text: linear-gradient(100deg, #0e7490, #4338ca 45%, #a21caf);
+  --grad-line: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), rgba(99, 102, 241, 0.6) 45%, rgba(217, 70, 239, 0.45), transparent);
+  --grad-veil: linear-gradient(140deg, rgba(6, 182, 212, 0.09), rgba(99, 102, 241, 0.05) 45%, rgba(217, 70, 239, 0.07));
+  --glow-brand: 0 0 20px -6px rgba(99, 102, 241, 0.45);
+  --grid-line: rgba(30, 42, 92, 0.05);
+  --aurora-1: rgba(56, 189, 248, 0.5);
+  --aurora-2: rgba(129, 108, 255, 0.42);
+  --aurora-3: rgba(236, 72, 153, 0.3);
+  --aurora-opacity: 0.62;
 }
 [data-theme='dark'] {
   color-scheme: dark;
 
-  /* The same warm ramp inverted: espresso rather than charcoal. A neutral-grey dark mode
-     next to a warm light mode reads as two different products, and pure grey darks make
-     every tint on them look like a stain. Surfaces climb one step at a time, because a
-     card is defined by being lighter than the page — two steps up and it floats. */
-  --canvas: #17140f;
-  --surface: #201c17;
-  --surface-raised: #2a251f;
-  --surface-sunken: #131009;
-  --surface-hover: #2a251f;
-  --surface-active: #342e26;
-  --overlay-scrim: rgba(10, 8, 5, 0.66);
+  /* Dark is the primary theme here: a console for machine telemetry belongs on a lit-on-dark
+     surface, and the spectrum only really glows against one. Deep blue-black rather than
+     neutral charcoal, because every accent on the page is cyan-to-magenta and a pure grey
+     ground makes each of them look like a stain. Surfaces climb one step at a time — a card
+     is defined by being lighter than the page, two steps up and it floats. */
+  --canvas: #070a16;
+  --surface: #111729;
+  --surface-raised: #172038;
+  --surface-sunken: #0c1120;
+  --surface-hover: #1a2340;
+  --surface-active: #222d4f;
+  --overlay-scrim: rgba(3, 5, 14, 0.72);
 
-  --border: #362f26;
-  --border-subtle: #2b251e;
-  --border-strong: #4e463a;
+  --border: #24304f;
+  --border-subtle: #1b2440;
+  --border-strong: #3d4c7a;
 
-  --control-face: #2a251f;
-  --control-face-hover: #342e26;
-  --control-face-active: #3e372d;
-  --control-border: #3a332a;
-  --control-border-hover: #554c3f;
-  --primary-face: #a34a74;
-  --primary-face-hover: #b45a83;
-  --primary-ink: #fdfbf7;
-  --accent-face: #351d29;
-  --accent-face-hover: #442536;
-  --accent-border: #5c3547;
-  --accent-ink: #e7aac6;
-  --field-face: #191510;
-  --field-face-disabled: #221e18;
-  --glass: color-mix(in srgb, #17140f 88%, transparent);
-  --header-glass: color-mix(in srgb, #201c17 86%, transparent);
+  --control-face: #172038;
+  --control-face-hover: #1f2a49;
+  --control-face-active: #27345a;
+  --control-border: #2b3860;
+  --control-border-hover: #4a5c94;
+  --primary-face: #6366f1;
+  --primary-face-hover: #7c78ff;
+  --primary-ink: #ffffff;
+  --accent-face: rgba(129, 140, 248, 0.14);
+  --accent-face-hover: rgba(129, 140, 248, 0.24);
+  --accent-border: rgba(140, 152, 255, 0.42);
+  --accent-ink: #b9c2ff;
+  --field-face: #0c1222;
+  --field-face-disabled: #131a2c;
+  --glass: color-mix(in srgb, #070a16 76%, transparent);
+  --header-glass: color-mix(in srgb, #0a0f1f 78%, transparent);
 
-  --text: #f3ede4;
-  --text-soft: #d2c9bb;
-  --text-muted: #b3a897;
-  --text-faint: #8d8272;
-  --text-inverse: #17140f;
+  --text: #eef1ff;
+  --text-soft: #c5cdea;
+  --text-muted: #93a0c6;
+  --text-faint: #6d7a9e;
+  --text-inverse: #070a16;
 
-  --brand: #e0a0bd;
-  --brand-strong: #eeb8d0;
-  --brand-soft: #351d29;
-  --brand-soft-strong: #442536;
-  --brand-border: #5c3547;
-  --brand-contrast: #fdfbf7;
+  --brand: #93a4ff;
+  --brand-strong: #b8c2ff;
+  --brand-soft: rgba(129, 140, 248, 0.16);
+  --brand-soft-strong: rgba(129, 140, 248, 0.26);
+  --brand-border: rgba(140, 152, 255, 0.42);
+  --brand-contrast: #ffffff;
 
-  --good: #86c07a;
-  --good-ink: #a6d49b;
-  --good-soft: #1b2517;
-  --good-border: #35502e;
+  --good: #34d399;
+  --good-ink: #6ee7b7;
+  --good-soft: rgba(16, 185, 129, 0.16);
+  --good-border: rgba(52, 211, 153, 0.34);
 
-  --warn: #e0ae4d;
-  --warn-ink: #eec780;
-  --warn-soft: #2a2011;
-  --warn-border: #57411a;
-  --warn-bar: #e0ae4d;
+  --warn: #fbbf24;
+  --warn-ink: #fcd34d;
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --warn-border: rgba(251, 191, 36, 0.32);
+  --warn-bar: #fbbf24;
 
-  --bad: #f0796e;
-  --bad-ink: #f5a49a;
-  --bad-soft: #2c1713;
-  --bad-border: #5a2a23;
+  --bad: #fb7185;
+  --bad-ink: #fda4af;
+  --bad-soft: rgba(244, 63, 94, 0.16);
+  --bad-border: rgba(251, 113, 133, 0.36);
 
-  --idle: #8d8272;
-  --idle-soft: #221e18;
-  --idle-border: #322c24;
-  --metric-track: rgba(243, 237, 228, 0.12);
+  --idle: #6d7a9e;
+  --idle-soft: rgba(109, 122, 158, 0.16);
+  --idle-border: rgba(109, 122, 158, 0.3);
+  --metric-track: rgba(147, 164, 255, 0.16);
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-2: 0 2px 8px -2px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-3: 0 24px 46px -22px rgba(0, 0, 0, 0.82), 0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-brand: 0 6px 14px -8px rgba(163, 74, 116, 0.6);
-  --ring: 0 0 0 3px rgba(224, 160, 189, 0.28);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 10px 26px -14px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(147, 164, 255, 0.07);
+  --shadow-3: 0 34px 64px -26px rgba(0, 0, 0, 0.86), 0 0 44px -16px rgba(99, 102, 241, 0.4);
+  --shadow-brand: 0 10px 26px -10px rgba(99, 102, 241, 0.7);
+  --ring: 0 0 0 3px rgba(129, 140, 248, 0.34);
   /* Same ramp direction as light, which in an inverted theme means darker rather than
      lighter: site band, group strip, panel floor (--canvas), model card (--surface). A
      group strip one step above the floor would have put the middle level between the floor
      and the card, i.e. the wrong way round. */
-  --panel-head: #090705;
-  --group-head: #100d09;
+  --panel-head: #04060f;
+  --group-head: #060a15;
+
+  /* Same spectrum, brighter: on a dark ground the decorative stops can go all the way up
+     to neon, while --grad-brand stays deep enough to carry white ink. */
+  --grad-brand: linear-gradient(115deg, #0e7490, #5b52e0 46%, #a21caf);
+  --grad-brand-hover: linear-gradient(115deg, #1189ab, #6f66ff 46%, #bd28ce);
+  --grad-accent: linear-gradient(115deg, #22d3ee, #7c6cff 46%, #f472b6);
+  --grad-text: linear-gradient(100deg, #67e8f9, #a5b4fc 45%, #f9a8d4);
+  --grad-line: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.55), rgba(167, 139, 250, 0.7) 45%, rgba(244, 114, 182, 0.5), transparent);
+  --grad-veil: linear-gradient(140deg, rgba(34, 211, 238, 0.1), rgba(124, 108, 255, 0.07) 45%, rgba(244, 114, 182, 0.08));
+  --glow-brand: 0 0 26px -4px rgba(124, 108, 255, 0.55);
+  --grid-line: rgba(147, 164, 255, 0.055);
+  --aurora-1: rgba(34, 211, 238, 0.42);
+  --aurora-2: rgba(124, 108, 255, 0.46);
+  --aurora-3: rgba(236, 72, 153, 0.32);
+  --aurora-opacity: 1;
 }
 

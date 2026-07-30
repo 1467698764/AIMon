@@ -23,14 +23,34 @@
 .app-loading .skeleton-shell > .skeleton:first-child { height: 22px; width: 62%; }
 .app-loading .skeleton-shell > .skeleton:last-child { width: 78%; }
 
+/* The login screen is the first thing anyone sees, so it gets the same lit ground as the app:
+   the canvas plus the grid come from <body>, and one aurora blob drifts behind the card. */
 .auth-page {
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: var(--space-6);
-  background: var(--canvas);
+  background: transparent;
+}
+.auth-page::before {
+  content: '';
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--aurora-opacity);
+  background:
+    radial-gradient(28% 28% at 32% 34%, var(--aurora-1), transparent 70%),
+    radial-gradient(30% 30% at 68% 62%, var(--aurora-2), transparent 72%),
+    radial-gradient(26% 26% at 54% 88%, var(--aurora-3), transparent 70%);
+  filter: blur(38px);
+  will-change: transform;
+  animation: aimon-drift-a 34s var(--ease) infinite alternate;
 }
 .auth-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -39,25 +59,51 @@
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   background: var(--surface);
+  background-image: var(--grad-veil);
   box-shadow: var(--shadow-3);
   animation: aimon-pop var(--dur) var(--ease-out);
+  overflow: hidden;
+}
+.auth-panel::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--grad-line);
+  pointer-events: none;
 }
 .auth-brand { display: flex; align-items: center; gap: var(--space-3); }
 .auth-brand > div:last-child { display: flex; flex-direction: column; line-height: 1.15; }
 .auth-brand strong { font-size: var(--text-md); }
 .auth-brand span { font-size: var(--text-2xs); font-weight: 650; letter-spacing: 0.16em; color: var(--text-muted); }
 .auth-icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 48px;
   height: 48px;
   margin-top: var(--space-2);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--brand-border);
-  background: var(--brand-soft-strong);
-  color: var(--brand-strong);
+  background: var(--grad-brand);
+  color: var(--brand-contrast);
+  box-shadow: var(--shadow-brand), var(--glow-brand);
 }
-.auth-panel h1 { font-size: var(--text-xl); }
+.auth-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  pointer-events: none;
+}
+.auth-panel h1 {
+  font-size: var(--text-xl);
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 .auth-panel > p { color: var(--text-muted); font-size: var(--text-sm); }
 .auth-form { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-2); }
 .auth-form .button { min-height: 38px; margin-top: var(--space-2); }
@@ -76,6 +122,7 @@
   overflow-y: auto;
 }
 .modal {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(520px, 100%);
@@ -86,6 +133,18 @@
   box-shadow: var(--shadow-3);
   animation: aimon-pop var(--dur) var(--ease-out);
   overflow: hidden;
+}
+/* Same light edge as a site panel: the spectrum hairline is how a raised surface says where
+   its top is, in the app and in every overlay. */
+.modal::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--grad-line);
+  pointer-events: none;
+  z-index: 1;
 }
 .modal.modal-wide { width: min(880px, 100%); }
 .modal:focus { outline: none; }
@@ -180,7 +239,7 @@
   font-weight: 700;
 }
 .step.active { color: var(--text); }
-.step.active > span { border-color: transparent; background: var(--brand); color: var(--brand-contrast); }
+.step.active > span { border-color: transparent; background: var(--grad-brand); color: var(--brand-contrast); }
 
 /* Same vocabulary as .segmented: two controls that do the same job — pick one of a
    small set — should not look like two different widgets. */
@@ -558,6 +617,7 @@
   backdrop-filter: blur(3px);
 }
 .palette {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(620px, 100%);
@@ -568,6 +628,16 @@
   box-shadow: var(--shadow-3);
   overflow: hidden;
   animation: aimon-pop var(--dur) var(--ease-out);
+}
+.palette::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--grad-line);
+  pointer-events: none;
+  z-index: 1;
 }
 .palette-search {
   display: flex;
