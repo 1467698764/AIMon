@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, CircleAlert, ExternalLink, GripVertical,
+  ChevronDown, ChevronRight, ExternalLink, GripVertical,
   LoaderCircle, MessageSquareText, MoveDown, MoveUp, Pencil, RefreshCw, Server, Trash2,
 } from 'lucide-react'
 import { api } from '../api'
@@ -261,12 +261,6 @@ export function SitePanel({
         >{deleting ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}</IconButton>
       </div>
     </header>
-    {site.lastError && <div className="site-sync-warning" role="status" title={site.lastError}>
-      <CircleAlert size={15} />
-      <strong>站点信息同步异常</strong>
-      <span>{site.lastError}</span>
-      <time>{site.lastSyncAt ? `上次同步 ${fmtTime(site.lastSyncAt)}` : '尚无成功同步记录'}</time>
-    </div>}
     {siteExpanded && <div className="group-stack">
       {groups.map((group, groupIndex) => {
         const groupChecking = isHealthActive({ groupId: group.id })

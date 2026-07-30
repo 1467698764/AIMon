@@ -13,11 +13,12 @@
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   /* The floor is the canvas colour, so the panel is marked by its edge rather than by a
-     second shade of page, and the cards on it keep the same contrast they had before. The
-     veil over it is a wash, not a shade: a few percent of the spectrum so the floor picks up
-     the same light as the aurora behind the page without changing level. */
+     second shade of page, and the cards on it keep the same contrast they had before. Over
+     it sits --grad-wash rather than the few-percent veil: a floor this large read as a flat
+     pale sheet, and the wash is what makes it pick up the same light as the aurora behind
+     the page without changing level. */
   background: var(--canvas);
-  background-image: var(--grad-veil);
+  background-image: var(--grad-wash);
   box-shadow: var(--shadow-1);
   overflow: hidden;
 }
@@ -40,7 +41,7 @@
   gap: var(--space-4);
   padding: var(--panel-pad) var(--space-5);
   background: var(--panel-head);
-  background-image: var(--grad-veil);
+  background-image: var(--grad-wash);
   border-bottom: 1px solid var(--border);
 }
 .site-reorder { display: flex; align-items: center; gap: 2px; }
@@ -138,24 +139,6 @@
 .site-actions { display: flex; align-items: center; gap: var(--space-2); justify-content: flex-end; }
 .mobile-order { display: none; }
 
-/* The stale-metadata warning is a notice, so it keeps a tinted body of its own. It sits on
-   the panel floor under the title band, so it carries the panel's own inset. */
-.site-sync-warning {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-4) var(--space-5) 0;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--warn-border);
-  background: var(--warn-soft);
-  color: var(--warn-ink);
-  font-size: var(--text-xs);
-}
-.site-sync-warning > svg { flex: none; }
-.site-sync-warning > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.site-sync-warning > time { flex: none; font-size: var(--text-xs); opacity: 0.8; }
-
 /* Groups */
 .group-stack { display: flex; flex-direction: column; }
 /* The group is the middle level, so it is a recessed strip rather than a naked row: a
@@ -170,6 +153,7 @@
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   background: var(--group-head);
+  background-image: var(--grad-wash);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -253,14 +237,34 @@
   padding: var(--card-pad);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: var(--surface);
+  /* The card is the object you actually read, so it is the one surface that gets a face of
+     its own rather than a wash over a flat colour: a diagonal of four steps along the
+     spectrum, white/near-black at the top-left corner and tinted cyan → indigo → magenta as
+     it falls to the bottom-right. A pure white card on a tinted page was the loudest part of
+     the "white haze" — four declared levels all landing inside a few points of lightness.
+     --surface stays as the fallback for anything that cannot paint an image. */
+  background-color: var(--surface);
+  background-image: var(--grad-card);
   box-shadow: var(--shadow-1);
   overflow: hidden;
   min-width: 0;
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background-image var(--dur) var(--ease);
+}
+/* Every framed thing on the page closes with the same one pixel of spectrum. ::before, not
+   ::after: a live round owns ::after for its sweeping edge. */
+.model-card::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--grad-line);
+  pointer-events: none;
+  z-index: 1;
 }
 .model-card:hover {
   border-color: var(--border-strong);
+  background-image: var(--grad-card-hover);
   box-shadow: var(--shadow-2), var(--glow-brand);
 }
 /* Only two states earn the card's edge: a failure, and a round in flight. A colour band
@@ -285,9 +289,9 @@
   pointer-events: none;
 }
 
-/* Three rows and nothing else: name and verdict, one row of readings, one row of controls.
-   The old card stacked six — a header, a success band and three full-width latency rows —
-   and at 193px tall a screen held four of them. Name, dots and badge share row one; the
+/* Three bands and nothing else: name and verdict, the readings, one row of controls. The
+   old card stacked six separate blocks — a header, a success band and three full-width
+   latency rows with their labels above them. Name, dots and badge share the first line; the
    dots wrap rather than push the badge off the end. */
 .model-card-header { display: flex; align-items: center; gap: var(--space-2) var(--space-3); }
 .model-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; }
@@ -329,23 +333,30 @@
 .attempt-dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
 .attempt-dots > i.ok { background: var(--good); }
 
-/* One row, three columns, each a small stat: label, reading, gauge. As three full-width
-   rows this was 99px of card for three numbers, and the labels ("平均首字") were longer
-   than the values they introduced — the long form now lives in the tooltip. */
+/* Three rows, one reading each: short label, value, gauge, all on one line. Side by side as
+   three columns the readings turned the card into a wide strip — a 324px card 136px tall,
+   nearly 2.4:1 — and each gauge was down to a third of the card's width, which is not enough
+   length for a bar to say anything. Stacked, the card reads as a tile (~1.5:1) and each bar
+   gets the full inner width. */
 .model-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
-.metric-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metric-stat {
+  display: grid;
+  grid-template-columns: 30px minmax(46px, auto) minmax(36px, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
 .metric-stat .metric-label { font-size: var(--text-2xs); line-height: 1.2; }
-.metric-stat .metric-value { line-height: 1.2; }
-/* Latency numbers stay ink: the bar under each one already carries its colour, and three
+.metric-stat .metric-value { line-height: 1.2; text-align: right; }
+/* Latency numbers stay ink: the bar beside each one already carries its colour, and three
    tinted numbers beside a tinted verdict made every healthy card as loud as a broken one.
    Red is the exception — that one is worth reading before the bar. */
 .metric-stat .metric-value.tone-good,
 .metric-stat .metric-value.tone-warning { color: var(--text-soft); }
-.metric-stat .metric-gauge { margin-top: 2px; }
 
 /* The footer carries one fact and four controls. It wraps rather than shrinks: a
    monitoring tool may not clip the last-checked time, and "07-30 14:2…" is exactly
@@ -419,7 +430,6 @@
     gap: var(--space-3);
     padding: var(--space-4);
   }
-  .site-sync-warning { margin: var(--space-3) var(--space-4) 0; }
   .model-grid { padding: var(--space-4); }
   .site-reorder .drag-handle { display: none; }
   /* Reorder on the left, the destructive-capable cluster on the right. Spreading all
@@ -446,6 +456,4 @@
   .group-leading .drag-handle { display: none; }
   .model-grid { grid-template-columns: minmax(0, 1fr); }
   .group-stack > .empty-inline { margin: var(--space-4); }
-  .site-sync-warning { flex-wrap: wrap; }
-  .site-sync-warning > span { white-space: normal; overflow: visible; }
 }

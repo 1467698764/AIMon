@@ -48,7 +48,8 @@
   min-height: var(--header-height);
   padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8));
   border-bottom: 1px solid var(--border);
-  background: var(--header-glass);
+  background-color: var(--header-glass);
+  background-image: var(--grad-veil);
   backdrop-filter: saturate(150%) blur(16px);
 }
 /* Every sticky band closes with a spectrum hairline instead of a second grey rule: it is
@@ -221,7 +222,10 @@
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid var(--border);
-  background: var(--glass);
+  /* The wash, not the veil: at a few percent this band was a pale frosted sheet, and it is
+     the widest single surface on the page after the panel floors. */
+  background-color: var(--glass);
+  background-image: var(--grad-wash);
   backdrop-filter: blur(14px) saturate(140%);
 }
 .workbench-row {

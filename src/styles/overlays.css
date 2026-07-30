@@ -129,7 +129,10 @@
   max-height: calc(100dvh - var(--space-8));
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--surface);
+  /* An overlay floats above a tinted page, so it keeps the raised surface — but it takes the
+     veil too, otherwise a 520px sheet of near-white is the palest thing on screen. */
+  background-color: var(--surface-raised);
+  background-image: var(--grad-veil);
   box-shadow: var(--shadow-3);
   animation: aimon-pop var(--dur) var(--ease-out);
   overflow: hidden;
@@ -624,7 +627,8 @@
   max-height: 60dvh;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface-raised);
+  background-image: var(--grad-veil);
   box-shadow: var(--shadow-3);
   overflow: hidden;
   animation: aimon-pop var(--dur) var(--ease-out);

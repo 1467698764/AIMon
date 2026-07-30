@@ -60,10 +60,11 @@
      ~150px of content. The inset is now one step under the gap between cards. */
   --card-pad: var(--space-4);
   --section-gap: var(--space-5);
-  /* The card has to hold a full timestamp (07-30 14:23:45) on the same line as the detail
-     link and three icon controls. At 268px it could not, so the time was clipped to
-     "07-30 14:2…" — the one fact on the card that a monitoring tool must not truncate. */
-  --model-card-min: 324px;
+  /* The card is meant to read as a near-square tile: with the three readings stacked as
+     rows instead of columns it is ~160px tall, so a 248px column lands around 1.55:1. The
+     footer may wrap at the tightest widths — that is what `flex-wrap` on it is for, because
+     the one thing a monitoring card must never clip is the timestamp. */
+  --model-card-min: 248px;
   --row-height: 34px;
   --metric-bar: 6px;
 }
@@ -71,7 +72,7 @@
   --panel-pad: var(--space-3);
   --card-pad: var(--space-3);
   --section-gap: var(--space-4);
-  --model-card-min: 292px;
+  --model-card-min: 220px;
   --row-height: 30px;
   --metric-bar: 5px;
   --text-base: 13px;
@@ -90,27 +91,33 @@
      answer in milliseconds, so the surface should look lit rather than pressed. Neutrals
      are pulled towards blue-violet instead of yellow, the canvas is a cold luminous grey
      and every accent comes off one iridescent spectrum (cyan → indigo → magenta) that is
-     defined once at the bottom of this block. */
-  --canvas: #eceffa;
-  --surface: #ffffff;
+     defined once at the bottom of this block.
+
+     Every step here carries chroma. The first pass at this palette put a #ffffff card on an
+     #eceffa canvas: four near-white values inside eight points of lightness, which read as
+     one white haze rather than as four levels. The ramp now spans #ccd5f0 → #f7f9ff, and no
+     large surface is pure white — white is kept for overlays that have to float above a
+     tinted page. */
+  --canvas: #e3e8fa;
+  --surface: #f7f9ff;
   --surface-raised: #ffffff;
-  --surface-sunken: #e6eaf7;
-  --surface-hover: #e3e9fa;
-  --surface-active: #d7def4;
+  --surface-sunken: #dbe2f6;
+  --surface-hover: #dde5f9;
+  --surface-active: #cfd8f2;
   --overlay-scrim: rgba(9, 13, 33, 0.42);
 
-  --border: #d4dbf0;
-  --border-subtle: #e3e8f7;
-  --border-strong: #aeb9dd;
+  --border: #c8d1ec;
+  --border-subtle: #d9e0f3;
+  --border-strong: #a3aed6;
 
   /* Ordinary buttons sit a step below the surface they are on; input-like controls sit on
      --field-face, level with the canvas, because a field is a hole you type into and a
      button is a face you press. */
-  --control-face: #e8ecfa;
-  --control-face-hover: #dfe5f8;
-  --control-face-active: #d3dbf3;
-  --control-border: #cfd7ef;
-  --control-border-hover: #a6b2da;
+  --control-face: #dde4f7;
+  --control-face-hover: #d3dcf3;
+  --control-face-active: #c7d2ee;
+  --control-border: #c4cee9;
+  --control-border-hover: #a0abd6;
   /* The one saturated slab per screen, marking the action that commits. It is painted with
      --grad-brand rather than this flat colour; --primary-face stays as the fallback and as
      the :active step. */
@@ -119,16 +126,16 @@
   --primary-ink: #ffffff;
   /* 测活 is what this tool exists for, so it gets a brand tint of its own — the same
      family as the primary without competing with it. */
-  --accent-face: #e8ebff;
-  --accent-face-hover: #dce1ff;
-  --accent-border: #c2caff;
-  --accent-ink: #4a41d8;
-  --field-face: #f2f5fd;
-  --field-face-disabled: #e9edf8;
+  --accent-face: #dfe4ff;
+  --accent-face-hover: #d2daff;
+  --accent-border: #b6c0fd;
+  --accent-ink: #4038cf;
+  --field-face: #eef2fd;
+  --field-face-disabled: #e3e9f8;
   /* Two frosted grounds: sticky bands over the canvas take --glass so they disappear into
      the page instead of reading as a white card, and the header takes --header-glass. */
-  --glass: color-mix(in srgb, #eceffa 84%, transparent);
-  --header-glass: color-mix(in srgb, #f5f7ff 82%, transparent);
+  --glass: color-mix(in srgb, #e3e8fa 82%, transparent);
+  --header-glass: color-mix(in srgb, #eaeefc 80%, transparent);
 
   --text: #0d1330;
   --text-soft: #2f3a5f;
@@ -138,9 +145,9 @@
 
   --brand: #4f46e5;
   --brand-strong: #3a2fd0;
-  --brand-soft: #e8ebff;
-  --brand-soft-strong: #dbe0ff;
-  --brand-border: #c2caff;
+  --brand-soft: #dfe4ff;
+  --brand-soft-strong: #d0d8ff;
+  --brand-border: #b6c0fd;
   --brand-contrast: #ffffff;
 
   /* Status colours stay dark enough to read as small text and sit in the same cool family
@@ -166,9 +173,9 @@
   --bad-border: #f6c3ce;
 
   --idle: #8a95b5;
-  --idle-soft: #e9edf8;
-  --idle-border: #dde3f3;
-  --metric-track: rgba(30, 42, 92, 0.12);
+  --idle-soft: #e0e6f5;
+  --idle-border: #d2daef;
+  --metric-track: rgba(30, 42, 92, 0.13);
 
   /* Shadows are short and cool, and the brand shadow is a glow rather than a drop: a lit
      control on a lit page is what makes the surface read as a screen. */
@@ -180,8 +187,8 @@
   /* The title band of a site panel: the one tinted ground that says "container". Together
      with --group-head it makes the level ramp run one way — the deeper the tint, the higher
      the level: site band, group strip, panel floor (--canvas), model card (--surface). */
-  --panel-head: #dfe4f6;
-  --group-head: #e7ebf8;
+  --panel-head: #ccd5f0;
+  --group-head: #d9dff5;
 
   /* One spectrum, declared once. Everything iridescent on the page is a slice of it, which
      is what keeps "炫彩" from turning into a different gradient per component:
@@ -190,6 +197,10 @@
        --grad-accent  decoration only (hairlines, bars, glows), free to be bright,
        --grad-text    background-clip text,
        --grad-veil    a barely-there wash over glass panels,
+       --grad-wash    the same wash at readable strength, for the large grounds that would
+                      otherwise be flat sheets: the sticky toolbar, the panel floor, modals,
+       --grad-card    the model card's own face — the card is the object you read, so this
+                      one is a diagonal of four tinted steps rather than an overlay,
        --aurora-*     the three drifting lights behind the whole page. */
   --grad-brand: linear-gradient(115deg, #0e7490, #4f46e5 46%, #a21caf);
   --grad-brand-hover: linear-gradient(115deg, #0c6579, #4338ca 46%, #8d18a0);
@@ -197,12 +208,15 @@
   --grad-text: linear-gradient(100deg, #0e7490, #4338ca 45%, #a21caf);
   --grad-line: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), rgba(99, 102, 241, 0.6) 45%, rgba(217, 70, 239, 0.45), transparent);
   --grad-veil: linear-gradient(140deg, rgba(6, 182, 212, 0.09), rgba(99, 102, 241, 0.05) 45%, rgba(217, 70, 239, 0.07));
+  --grad-wash: linear-gradient(135deg, rgba(6, 182, 212, 0.16), rgba(99, 102, 241, 0.08) 46%, rgba(217, 70, 239, 0.14));
+  --grad-card: linear-gradient(135deg, #ffffff, #e8f1ff 38%, #eae7ff 72%, #fce4f6);
+  --grad-card-hover: linear-gradient(135deg, #ffffff, #dceaff 36%, #e2ddff 70%, #fbd9f2);
   --glow-brand: 0 0 20px -6px rgba(99, 102, 241, 0.45);
-  --grid-line: rgba(30, 42, 92, 0.05);
-  --aurora-1: rgba(56, 189, 248, 0.5);
-  --aurora-2: rgba(129, 108, 255, 0.42);
-  --aurora-3: rgba(236, 72, 153, 0.3);
-  --aurora-opacity: 0.62;
+  --grid-line: rgba(30, 42, 92, 0.07);
+  --aurora-1: rgba(56, 189, 248, 0.62);
+  --aurora-2: rgba(129, 108, 255, 0.55);
+  --aurora-3: rgba(236, 72, 153, 0.4);
+  --aurora-opacity: 0.85;
 }
 [data-theme='dark'] {
   color-scheme: dark;
@@ -295,6 +309,11 @@
   --grad-text: linear-gradient(100deg, #67e8f9, #a5b4fc 45%, #f9a8d4);
   --grad-line: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.55), rgba(167, 139, 250, 0.7) 45%, rgba(244, 114, 182, 0.5), transparent);
   --grad-veil: linear-gradient(140deg, rgba(34, 211, 238, 0.1), rgba(124, 108, 255, 0.07) 45%, rgba(244, 114, 182, 0.08));
+  --grad-wash: linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(124, 108, 255, 0.1) 46%, rgba(244, 114, 182, 0.11));
+  /* The dark card is a tinted slab, not a wash over one: four steps along the spectrum, all
+     dark enough to carry --text at 14px. */
+  --grad-card: linear-gradient(135deg, #101a2f, #141d3c 40%, #1a1a3d 74%, #22163a);
+  --grad-card-hover: linear-gradient(135deg, #142137, #182448 38%, #201f4b 72%, #2c1b48);
   --glow-brand: 0 0 26px -4px rgba(124, 108, 255, 0.55);
   --grid-line: rgba(147, 164, 255, 0.055);
   --aurora-1: rgba(34, 211, 238, 0.42);
